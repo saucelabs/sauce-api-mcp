@@ -1,0 +1,207 @@
+{
+  "by_org": {
+    "org_id": "87aaa9588ab4414195200a6e50b41331",
+    "data": [
+      {
+        "time": "2025-06-08T00:00:00+00:00",
+        "values": []
+      },
+      {
+        "time": "2025-06-07T00:00:00+00:00",
+        "values": []
+      },
+      {
+        "time": "2025-06-06T00:00:00+00:00",
+        "values": [
+          {
+            "resource_type": "virtual_machine",
+            "concurrency": {
+              "max": 11,
+              "min": 0,
+              "max_org_concurrency_team_share": [
+                {
+                  "team_id": "26b2026a282c45d3844d322c02a124b9",
+                  "pct": 100.0,
+                  "avg_concurrency": 11.0
+                }
+              ]
+            },
+            "limits": {
+              "total": 100,
+              "resource": 100,
+              "total_original": 100,
+              "resource_original": 100
+            }
+          }
+        ]
+      },
+      {
+        "time": "2025-06-05T00:00:00+00:00",
+        "values": []
+      },
+      {
+        "time": "2025-06-04T00:00:00+00:00",
+        "values": []
+      },
+      {
+        "time": "2025-06-03T00:00:00+00:00",
+        "values": []
+      },
+      {
+        "time": "2025-06-02T00:00:00+00:00",
+        "values": [
+          {
+            "resource_type": "virtual_machine",
+            "concurrency": {
+              "max": 1,
+              "min": 0,
+              "max_org_concurrency_team_share": [
+                {
+                  "team_id": "26b2026a282c45d3844d322c02a124b9",
+                  "pct": 100.0,
+                  "avg_concurrency": 1.0
+                }
+              ]
+            },
+            "limits": {
+              "total": 100,
+              "resource": 100,
+              "total_original": 100,
+              "resource_original": 100
+            }
+          }
+        ]
+      },
+      {
+        "time": "2025-06-01T00:00:00+00:00",
+        "values": []
+      },
+      {
+        "time": "2025-05-31T00:00:00+00:00",
+        "values": [
+          {
+            "resource_type": "virtual_machine",
+            "concurrency": {
+              "max": 1,
+              "min": 0,
+              "max_org_concurrency_team_share": [
+                {
+                  "team_id": "26b2026a282c45d3844d322c02a124b9",
+                  "pct": 100.0,
+                  "avg_concurrency": 1.0
+                }
+              ]
+            },
+            "limits": {
+              "total": 100,
+              "resource": 100,
+              "total_original": 100,
+              "resource_original": 100
+            }
+          }
+        ]
+      },
+      {
+        "time": "2025-05-30T00:00:00+00:00",
+        "values": [
+          {
+            "resource_type": "virtual_machine",
+            "concurrency": {
+              "max": 1,
+              "min": 0,
+              "max_org_concurrency_team_share": [
+                {
+                  "team_id": "26b2026a282c45d3844d322c02a124b9",
+                  "pct": 100.0,
+                  "avg_concurrency": 1.0
+                }
+              ]
+            },
+            "limits": {
+              "total": 100,
+              "resource": 100,
+              "total_original": 100,
+              "resource_original": 100
+            }
+          }
+        ]
+      },
+      {
+        "time": "2025-05-29T00:00:00+00:00",
+        "values": []
+      },
+      {
+        "time": "2025-05-28T00:00:00+00:00",
+        "values": []
+      },
+      {
+        "time": "2025-05-27T00:00:00+00:00",
+        "values": []
+      },
+      {
+        "time": "2025-05-26T00:00:00+00:00",
+        "values": []
+      },
+      {
+        "time": "2025-05-25T00:00:00+00:00",
+        "values": []
+      },
+      {
+        "time": "2025-05-24T00:00:00+00:00",
+        "values": []
+      },
+      {
+        "time": "2025-05-23T00:00:00+00:00",
+        "values": []
+      },
+      {
+        "time": "2025-05-22T00:00:00+00:00",
+        "values": []
+      },
+      {
+        "time": "2025-05-21T00:00:00+00:00",
+        "values": []
+      },
+      {
+        "time": "2025-05-20T00:00:00+00:00",
+        "values": []
+      },
+      {
+        "time": "2025-05-19T00:00:00+00:00",
+        "values": []
+      },
+      {
+        "time": "2025-05-18T00:00:00+00:00",
+        "values": []
+      },
+      {
+        "time": "2025-05-17T00:00:00+00:00",
+        "values": []
+      },
+      {
+        "time": "2025-05-16T00:00:00+00:00",
+        "values": []
+      },
+      {
+        "time": "2025-05-15T00:00:00+00:00",
+        "values": []
+      },
+      {
+        "time": "2025-05-14T00:00:00+00:00",
+        "values": []
+      },
+      {
+        "time": "2025-05-13T00:00:00+00:00",
+        "values": []
+      },
+      {
+        "time": "2025-05-12T00:00:00+00:00",
+        "values": []
+      },
+      {
+        "time": "2025-05-11T00:00:00+00:00",
+        "values": []
+      }
+    ]
+  }
+}

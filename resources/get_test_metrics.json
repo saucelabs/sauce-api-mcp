@@ -1,0 +1,55 @@
+{
+  "meta": {
+    "status": 200
+  },
+  "aggs": {
+    "count": 54,
+    "fastestRun": {
+      "ancestor": "marcus.merrell",
+      "browser": "Chrome",
+      "browser_normalized": "Chrome 137.0",
+      "build": "",
+      "creation_time": "2025-06-06T14:18:34+00:00",
+      "details_url": "https://api.us-west-4-i3er.saucelabs.com/rest/v1.1/jobs/e18b7b53e4344cbbad09c15e76ddbc63",
+      "duration": 6,
+      "end_time": "2025-06-06T14:18:41+00:00",
+      "error": "",
+      "id": "e18b7b53e4344cbbad09c15e76ddbc63",
+      "name": "navigateToContact()",
+      "org_id": "87aaa9588ab4414195200a6e50b41331",
+      "os": "Windows",
+      "os_normalized": "Windows 11",
+      "owner": "marcus.merrell",
+      "start_time": "2025-06-06T14:18:35+00:00",
+      "status": "passed"
+    },
+    "slowestRun": {
+      "ancestor": "marcus.merrell",
+      "browser": "Safari",
+      "browser_normalized": "Safari 18.0",
+      "build": "",
+      "creation_time": "2025-06-06T15:21:51+00:00",
+      "details_url": "https://api.us-west-4-i3er.saucelabs.com/rest/v1.1/jobs/c7b423ea0b5f4e09b88799076e165ba9",
+      "duration": 244,
+      "end_time": "2025-06-06T15:25:55+00:00",
+      "error": "",
+      "id": "c7b423ea0b5f4e09b88799076e165ba9",
+      "name": "http://saucedemo.com",
+      "org_id": "87aaa9588ab4414195200a6e50b41331",
+      "os": "macOS",
+      "os_normalized": "macOS Sonoma",
+      "owner": "marcus.merrell",
+      "start_time": "2025-06-06T15:21:51+00:00",
+      "status": "failed"
+    },
+    "statuses": {
+      "complete": 1,
+      "error": 0,
+      "failed": 13,
+      "passed": 40
+    },
+    "avgRunTime": 30.0,
+    "totalQueueTime": 1652.0,
+    "totalRunTime": 1620.0
+  }
+}

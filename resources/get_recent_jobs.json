@@ -1,0 +1,66 @@
+[
+  {
+    "status": "complete",
+    "base_config": {
+      "sauce:options": {
+        "name": "http://example-service.com",
+        "_cyborg": true,
+        "idleTimeout": 10800,
+        "_cyborg_start_url": "http://example-service.com",
+        "screenResolution": "1440x900",
+        "avoidProxy": true,
+        "maxDuration": 10800
+      },
+      "browserName": "chrome",
+      "platformName": "Windows 11",
+      "browserVersion": "137"
+    },
+    "command_counts": {
+      "All": 3,
+      "Error": 1
+    },
+    "deletion_time": null,
+    "url": null,
+    "org_id": "87aaa9588ab4414195200a6e50b41331",
+    "creation_time": 1749227192,
+    "public": "team",
+    "team_id": "26b2026a282c45d3844d322c02a124b9",
+    "performance_enabled": null,
+    "assigned_tunnel_id": null,
+    "container": false,
+    "id": "7fd1d5d9f9714923a8cbad964f4c631d",
+    "breakpointed": null
+  },
+  {
+    "status": "complete",
+    "base_config": {
+      "sauce:options": {
+        "name": "http://example-service.com",
+        "_cyborg": true,
+        "idleTimeout": 10800,
+        "_cyborg_start_url": "http://example-service.com",
+        "screenResolution": "1440x900",
+        "avoidProxy": true,
+        "maxDuration": 10800
+      },
+      "browserName": "firefox",
+      "platformName": "Windows 2008",
+      "browserVersion": "73"
+    },
+    "command_counts": {
+      "All": 3,
+      "Error": 1
+    },
+    "deletion_time": null,
+    "url": null,
+    "org_id": "87aaa9588ab4414195200a6e50b41331",
+    "creation_time": 1749226825,
+    "public": "team",
+    "team_id": "26b2026a282c45d3844d322c02a124b9",
+    "performance_enabled": null,
+    "assigned_tunnel_id": null,
+    "container": false,
+    "id": "1db6d16b91074481be8efbff2b4407be",
+    "breakpointed": null
+  }
+]

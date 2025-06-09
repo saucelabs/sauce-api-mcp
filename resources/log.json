@@ -1,0 +1,74 @@
+{
+  "screenshot": 0,
+  "suggestion_values": [],
+  "start_time": 1749227194.531,
+  "request": {
+    "capabilities": {
+      "alwaysMatch": {
+        "goog:chromeOptions": {
+          "binary": "D:\\Program Files\\Chrome 137\\chrome.exe",
+          "prefs": {
+            "browser": {
+              "show_update_promotion_info_bar": false
+            }
+          },
+          "args": [
+            "start-maximized",
+            "disable-infobars",
+            "ignore-gpu-blacklist",
+            "test-type",
+            "disable-gpu"
+          ]
+        },
+        "browserName": "chrome"
+      },
+      "firstMatch": [
+        {}
+      ]
+    }
+  },
+  "result": {
+    "sessionId": "81212a620a765130a90cc87592317a81",
+    "capabilities": {
+      "goog:chromeOptions": {
+        "debuggerAddress": "localhost:49796"
+      },
+      "browserVersion": "137.0.7151.41",
+      "webauthn:extension:minPinLength": true,
+      "timeouts": {
+        "pageLoad": 300000,
+        "implicit": 0,
+        "script": 30000
+      },
+      "strictFileInteractability": false,
+      "acceptInsecureCerts": false,
+      "webauthn:extension:prf": true,
+      "networkConnectionEnabled": false,
+      "fedcm:accounts": true,
+      "chrome": {
+        "chromedriverVersion": "137.0.7151.55 (254bc711794d7ad269495f3d419a209935b78cad-refs/branch-heads/7151@{#1757})",
+        "userDataDir": "C:\\Users\\sauce\\AppData\\Local\\Temp\\scoped_dir4800_1022779520"
+      },
+      "browserName": "chrome",
+      "setWindowRect": true,
+      "proxy": {},
+      "webauthn:virtualAuthenticators": true,
+      "pageLoadStrategy": "normal",
+      "webauthn:extension:largeBlob": true,
+      "platformName": "windows",
+      "unhandledPromptBehavior": "dismiss and notify",
+      "webauthn:extension:credBlob": true
+    }
+  },
+  "duration": 1.562000036239624,
+  "path": "/session",
+  "hide_from_ui": false,
+  "between_commands": null,
+  "visual_command": false,
+  "HTTPStatus": 200,
+  "suggestion": null,
+  "request_id": "7fd1d5d9-f971-4923-a8cb-ad964f4c631d",
+  "in_video_timeline": 0.5,
+  "method": "POST",
+  "statusCode": 0
+}

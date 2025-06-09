@@ -1,8 +1,8 @@
-# sauce-mcp
-A 1:1 mapping of the Sauce Labs API into MCP Tools
+# sauce-api-mcp
+An MCP Server for the Sauce Labs API
 
 ## Overview
-Sauce-MCP is an MCP Server that serves as a wrapper for the Sauce 
+Sauce-API-MCP is an MCP Server that serves as a wrapper for the Sauce 
 Labs Public API. With proper credentials and access, any Sauce Labs 
 customer can use this
 

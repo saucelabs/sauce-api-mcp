@@ -1,0 +1,12 @@
+{
+  "video.mp4": "video.mp4",
+  "selenium-log": "selenium-server.log",
+  "sauce-log": "log.json",
+  "video": "video.mp4",
+  "cdp-log": null,
+  "screenshots": [
+    "0000screenshot.png",
+    "0001screenshot.png",
+    "0002screenshot.png"
+  ]
+}
