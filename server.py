@@ -21,16 +21,30 @@ class SauceLabsAgent:
         self.mcp.resource("sauce://account")(self.account_info)
 
         ## Tools
+        ### Accounts
         self.mcp.tool()(self.get_account_info)
+        self.mcp.tool()(self.get_org_concurrency)
+        self.mcp.tool()(self.get_team_concurrency)
+        self.mcp.tool()(self.lookup_teams)
+        self.mcp.tool()(self.get_team)
+        self.mcp.tool()(self.list_team_members)
+        self.mcp.tool()(self.lookup_users)
+        self.mcp.tool()(self.get_user)
+        self.mcp.tool()(self.get_my_active_team)
+        self.mcp.tool()(self.lookup_service_accounts)
+        self.mcp.tool()(self.get_service_account)
+
+        ### Jobs
         self.mcp.tool()(self.get_recent_jobs)
         self.mcp.tool()(self.get_job_details)
         self.mcp.tool()(self.get_test_assets)
         self.mcp.tool()(self.get_log_json_file)
-        self.mcp.tool()(self.get_org_concurrency)
-        self.mcp.tool()(self.get_team_concurrency)
+
+        ### Insights
         self.mcp.tool()(self.get_test_analytics)
         self.mcp.tool()(self.get_test_trends)
         self.mcp.tool()(self.get_test_metrics)
+
         # self.mcp.tool()(self.get_all_builds_and_tests)
         # self.mcp.tool()(self.get_supported_platforms)
         # self.mcp.tool()(self.get_sauce_status)
@@ -61,6 +75,7 @@ class SauceLabsAgent:
         logging.info("Closing HTTPX client session.")
         await self.client.aclose()
 
+################################## Account endpoints
     # Not exposed to the Agent. We can register if we need to, but it seems better to use the helper method.
     async def get_asset_url(self, job_id: str, asset_key: str) -> str:
         asset_list = await self.get_test_assets(job_id)
@@ -91,6 +106,100 @@ class SauceLabsAgent:
 
         return account_data
 
+    async def lookup_teams(self, id: str, name: str) -> Dict[str, Any]:
+        """
+        Queries the organization of the requesting account and returns the number of teams matching the query and a
+        summary of each team, including the ID value, which may be a required parameter of other API calls related
+        to a specific team.You can filter the results of your query using the name parameter below.
+        :param id: Optional. Comma-separated team IDs. Allows to receive details of multiple teams at once. For example,
+            id=3d60780314724ab8ac688b50aadd9ff9,f9acc7c5b1da4fd0902b184c4f0b6324 would return details of teams with IDs
+            included in the provided list.
+        :param name: Optional. Returns the set of teams that begin with the specified name value. For example, name=sauce would
+            return all teams in the organization with names beginning with "sauce".
+        """
+        response = await self.sauce_api_call(f"team-management/v1/teams?id={id}&name={name}")
+        return response.json()
+
+    async def get_team(self, id: str) -> Dict[str, Any]:
+        """
+        Returns the full profile of the specified team. The ID of the team is the only valid unique identifier.
+        :param id: Required. The unique identifier of the team. You can look up the IDs of teams in your organization
+            using the Lookup Teams endpoint.
+        """
+        response = await self.sauce_api_call(f"team-management/v1/teams/{id}")
+        return response.json()
+
+    async def list_team_members(self, id: str) -> Dict[str, Any]:
+        """
+        Returns the number of members in the specified team and lists each member.
+        :param id: Required. Identifies the team for which you are requesting the list of members.
+        """
+        response = await self.sauce_api_call(f"team-management/v1/teams/{id}/members/")
+        return response.json()
+
+    async def lookup_users(self, id: str) -> Dict[str, Any]:
+        """
+        Queries the organization of the requesting account and returns the number of users matching the query and a basic
+        profile of each user, including the ID value, which may be a required parameter of other API calls related to a
+        specific user. You can narrow the results of your query using any of the following filtering parameters.
+        :param id: Optional. Comma-separated user IDs. Allows to receive details of multiple user at once. For example,
+            id=3d60780314724ab8ac688b50aadd9ff9,f9acc7c5b1da4fd0902b184c4f0b6324 would return details of users with IDs
+            included in the provided list.
+        :param username: Optional. Limits the results to usernames that begin with the specified value. For example,
+            username=an would return all users in the organization with usernames beginning with "an".
+        :param teams: Optional. Limit results to users who belong to the specified team_ids. Specify multiple teams as
+            comma-separated values.
+        :param roles: Optional. Limit results to users who are assigned certain roles. Valid values are: 1 - Organization Admin,
+            4 - Team Admin, 3 - Member. Specify multiple roles as comma-separated values.
+        :param phrase: Optional. Limit results to users whose first name, last name, or email address begins with the specified value.
+        :param status: Optional. Limit results to users of the specifid status. Valid values are: 'active', 'pending', 'inactive'
+        :param limit: Optional. Limit results to a maximum number per page. Default value is 20.
+        :param offset: Optional. The starting record number from which to return results.
+        """
+        response = await self.sauce_api_call(f"team-management/v1/users/")
+        return response.json()
+
+    async def get_user(self, id: str) -> Dict[str, Any]:
+        """
+        Returns the full profile of the specified user. The ID of the user is the only valid unique identifier.
+        :param id: Required. The user's unique identifier. Specific user IDs can be obtained through the lookup_users Tool
+        """
+        response = await self.sauce_api_call(f"team-management/v1/users/{id}/")
+        return response.json()
+
+    async def get_my_active_team(self) -> Dict[str, Any]:
+        """
+        Retrieves the Sauce Labs active team for the currently authenticated user.
+        """
+        response = await self.sauce_api_call(f"team-management/v1/users/me/active-team/")
+        return response.json()
+
+    async def lookup_service_accounts(self) -> Dict[str, Any]:
+        """
+        Lists existing service accounts in your organization. You can filter the results using the query parameters below.
+        :param id: Optional. Comma-separated service account IDs.
+            included in the provided list.
+        :param username: Optional. Limits the results to usernames that begin with the specified value. For example,
+            username=an would return all service accounts in the organization with usernames beginning with "an".
+        :param teams: Optional. Limit results to service account who belong to the specified team_ids. Specify multiple
+            teams as comma-separated values.
+        :param limit: Optional. Limit results to a maximum number per page. Default value is 20.
+        :param offset: Optional. The starting record number from which to return results.
+        """
+        response = await self.sauce_api_call(f"team-management/v1/service-accounts/")
+        return response.json()
+
+    async def get_service_account(self, id: str) -> Dict[str, Any]:
+        """
+        Retrieves details of the specified service account.
+        :param id: Required. The unique identifier of the service account. You can find the uuid in the URL of the
+            service account details view in the Sauce Labs UI. You can also look up the uuid using the Lookup
+            Service Accounts endpoint.
+        """
+        response = await self.sauce_api_call(f"team-management/v1/service-accounts/{id}/")
+        return response.json()
+
+    ################################## Jobs endpoints
     # This is exposed to the Agent in case the user wants to see the links that will click through to the Sauce UI
     async def get_test_assets(self, job_id: str) -> Dict[str, Any]:
         """
