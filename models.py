@@ -203,11 +203,11 @@ class SauceOptions(BaseModel):
 
     name: str
     cyborg: bool = Field(..., alias="_cyborg")
-    idle_timeout: int = Field(..., alias="idleTimeout")
+    idleTimeout: int
     cyborg_start_url: str = Field(..., alias="_cyborg_start_url")
-    screen_resolution: str = Field(..., alias="screenResolution")
-    avoid_proxy: bool = Field(..., alias="avoidProxy")
-    max_duration: int = Field(..., alias="maxDuration")
+    screenResolution: str
+    avoidProxy: bool
+    maxDuration: int
 
 
 class BaseConfig(BaseModel):
@@ -216,9 +216,9 @@ class BaseConfig(BaseModel):
     """
 
     sauce_options: SauceOptions = Field(..., alias="sauce:options")
-    browser_name: str = Field(..., alias="browserName")
-    platform_name: str = Field(..., alias="platformName")
-    browser_version: str = Field(..., alias="browserVersion")
+    browserName: str
+    platformName: str
+    browserVersion: str
 
 
 class CommandCounts(BaseModel):
@@ -377,18 +377,18 @@ class TrendsAggregations(BaseModel):
     """
 
     browser: List[NameCount]
-    browser_error: List[NameCount] = Field(..., alias="browserError")
-    browser_fail: List[NameCount] = Field(..., alias="browserFail")
+    browserError: List[NameCount]
+    browserFail: List[NameCount]
     device: List[NameCount]
-    device_error: List[NameCount] = Field(..., alias="deviceError")
-    device_fail: List[NameCount] = Field(..., alias="deviceFail")
-    error_message: List[NameCount] = Field(..., alias="errorMessage")
+    deviceError: List[NameCount]
+    deviceFail: List[NameCount]
+    errorMessage: List[NameCount]
     framework: List[NameCount]
-    framework_error: List[NameCount] = Field(..., alias="frameworkError")
-    framework_fail: List[NameCount] = Field(..., alias="frameworkFail")
+    frameworkError: List[NameCount]
+    frameworkFail: List[NameCount]
     os: List[NameCount]
-    os_error: List[NameCount] = Field(..., alias="osError")
-    os_fail: List[NameCount] = Field(..., alias="osFail")
+    osError: List[NameCount]
+    osFail: List[NameCount]
     owner: List[NameCount]
     status: List[NameCount]
 
