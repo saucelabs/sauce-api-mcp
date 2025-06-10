@@ -31,9 +31,22 @@ class SauceLabsAgent:
         self.mcp.tool()(self.get_test_analytics)
         self.mcp.tool()(self.get_test_trends)
         self.mcp.tool()(self.get_test_metrics)
+
+        ### Platform
+        self.mcp.tool()(self.get_sauce_status)
+
+        ### Sauce Connect
+        self.mcp.tool()(self.get_tunnels_for_user)
+        self.mcp.tool()(self.get_tunnel_information)
+        self.mcp.tool()(self.get_tunnel_version_downloads)
+        self.mcp.tool()(self.get_current_jobs_for_tunnel)
+
+        ### Storage
+        self.mcp.tool()(self.get_storage_files)
+        self.mcp.tool()(self.get_storage_groups)
+        self.mcp.tool()(self.get_storage_groups_settings)
+
         # self.mcp.tool()(self.get_all_builds_and_tests)
-        # self.mcp.tool()(self.get_supported_platforms)
-        # self.mcp.tool()(self.get_sauce_status)
         # self.mcp.tool()(self.get_network_har_file)
         # self.mcp.tool()(self.get_performance_json_file)
         # self.mcp.tool()(self.get_selenium_log_file)
@@ -163,7 +176,58 @@ class SauceLabsAgent:
 
         return data
 
-################################## Insights endpoints
+    ################################## Sauce Connect endpoints
+
+    async def get_tunnels_for_user(self, username) -> Dict[str, Any]:
+        """
+        Returns Tunnel IDs or Tunnels Info for any currently running tunnels launched by or shared with the specified
+        user. The word "tunnel" in this context refers to usage of the Sauce Connect tool.
+        It also allows to filter tunnels using an optional "filter" parameter that may take the following values:
+        :param username: Required. The authentication username of the user whose tunnels you are requesting.
+        """
+        response = await self.sauce_api_call(f"rest/v1/{username}/tunnels")
+        data = response.json()
+
+        return data
+
+
+    async def get_tunnel_information(self, username: str, tunnel_id: str) -> Dict[str, Any]:
+        """
+        Returns information about the specified tunnel. The word "tunnel" in this context refers to usage of \
+        the Sauce Connect tool.
+        :param username: Required. The authentication username of the owner of the requested tunnel.
+        :param tunnel_id: Required. The unique identifier of the requested tunnel.
+        """
+        response = await self.sauce_api_call(f"rest/v1/{username}/tunnels/{tunnel_id}")
+        data = response.json()
+
+        return data
+
+    async def get_tunnel_version_downloads(self, client_version: str) -> Dict[str, Any]:
+        """
+        Returns the specific paths (URLs) to download specific versions of the SauceConnect tunnel software.
+        The word "tunnel" in this context refers to usage of the Sauce Connect tool.
+        :param client_version: Optional. Returns download information for the specified Sauce Connect client
+            version (For example, '5.2.3').
+        """
+        response = await self.sauce_api_call(f"rest/v1/public/tunnels/info/versions?client_version={client_version}")
+        data = response.json()
+
+        return data
+
+    async def get_current_jobs_for_tunnel(self, username: str, tunnel_id: str) -> Dict[str, Any]:
+        """
+        Returns the number of currently running jobs for the specified tunnel. The word "tunnel" in this context refers
+        to usage of the Sauce Connect tool.
+        :param username: Required. The authentication username of the owner of the requested tunnel.
+        :param tunnel_id: Required. The unique identifier of the requested tunnel.
+        """
+        response = await self.sauce_api_call(f"rest/v1/{username}/tunnels/{tunnel_id}/num_jobs")
+        data = response.json()
+
+        return data
+
+    ################################## Insights endpoints
     async def get_test_analytics(self, start: str, end: str) -> Dict[str, Any]:
         """
         Return run summary data for all tests that match the request criteria. Good for overall analytics about the requested period, not detailed test results
@@ -210,7 +274,7 @@ class SauceLabsAgent:
 
         return response
 
-################################## Sauce system metrics
+################################## Sauce status
     async def get_sauce_status(self) -> Union[Dict[str, Any], Dict[str, str]]:
         """
         Returns the current (30 second cache) availability of the Sauce Labs platform. This should tell you whether Sauce is 'up' or 'down'
@@ -234,10 +298,35 @@ class SauceLabsAgent:
             account_info = await self.account_info()
             org_id = account_info["results"][0]["organization"]["id"]
 
-        response = await self.sauce_api_call(f"usage-analytics/v1/concurrency/org?org_id={org_id}")
-        org_data = response.json()
+################################## Storage endpoints
 
-        return org_data
+    async def get_storage_files(self) -> Dict[str, Any]:
+        """
+        Returns the set of files that have been uploaded to Sauce Storage by the requestor.
+        """
+        response = await self.sauce_api_call(f"v1/storage/files")
+        data = response.json()
+
+        return data
+
+    async def get_storage_groups(self) -> Dict[str, Any]:
+        """
+        Returns an array of groups (apps containing multiple files) currently in storage for the authenticated requestor.
+        """
+        response = await self.sauce_api_call(f"v1/storage/groups")
+        data = response.json()
+
+        return data
+
+    async def get_storage_groups_settings(self, group_id: str) -> Dict[str, Any]:
+        """
+        Returns the settings of an app group with the given ID.
+        :param group_id: The unique identifier of the app group. You can look up group IDs using the Get App Storage Groups endpoint.
+        """
+        response = await self.sauce_api_call(f"v1/storage/groups/{group_id}/settings")
+        data = response.json()
+
+        return data
 
     async def get_team_concurrency(self, org_id: str, team_id: str) -> Dict[str, Any]:
         """
