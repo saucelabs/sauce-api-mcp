@@ -40,6 +40,12 @@ class SauceLabsAgent:
         self.mcp.tool()(self.get_test_assets)
         self.mcp.tool()(self.get_log_json_file)
 
+        ### Builds
+        self.mcp.tool()(self.get_build_for_job)
+        self.mcp.tool()(self.get_build)
+        self.mcp.tool()(self.lookup_builds)
+        self.mcp.tool()(self.lookup_jobs_in_build)
+
         ### Insights
         self.mcp.tool()(self.get_test_analytics)
         self.mcp.tool()(self.get_test_trends)
@@ -199,6 +205,48 @@ class SauceLabsAgent:
         response = await self.sauce_api_call(f"team-management/v1/service-accounts/{id}/")
         return response.json()
 
+    async def get_org_concurrency(self, org_id: str) -> Dict[str, Any]:
+        """
+        Return information about concurrency usage for organization:
+        - maximum, minimum concurrency for given granularity (monthly, weekly, daily, hourly),
+        - teams' share for the organization maximum concurrency for given granularity (in percentage),
+        - current limits.
+        :param org_id: Return results only for the specified org_id
+        :return: Json report containing org concurrency usage
+        """
+        if org_id is None:
+            account_info = await self.account_info()
+            org_id = account_info["results"][0]["organization"]["id"]
+
+        response = await self.sauce_api_call(f"usage-analytics/v1/concurrency/org?org_id={org_id}")
+        org_data = response.json()
+
+        return org_data
+
+    async def get_team_concurrency(self, org_id: str, team_id: str) -> Dict[str, Any]:
+        """
+        Return information about concurrency usage for teams:
+            - maximum, minimum concurrency for given granularity (monthly, weekly, daily, hourly),
+            - current limits.
+        Concurrency data is broken down by resource types for:
+        - Virtual Cloud:
+            - virtual machines,
+            - mac virtual machines,
+            - mac arm virtual machines,
+            - total virtual machines, combining all resource types.
+        - Real Device Cloud:
+            - private devices,
+            - public devices,
+            - total virtual machines, combining all resource types.
+        :param org_id:
+        :param team_id:
+        :return: Json report containing team concurrency usage
+        """
+        response = await self.sauce_api_call(f"usage-analytics/v1/concurrency/teams?org_id={org_id}&team_id={team_id}")
+        team_data = response.json()
+
+        return team_data
+
     ################################## Jobs endpoints
     # This is exposed to the Agent in case the user wants to see the links that will click through to the Sauce UI
     async def get_test_assets(self, job_id: str) -> Dict[str, Any]:
@@ -262,12 +310,55 @@ class SauceLabsAgent:
 
         return data
 
-    async def get_supported_platforms(self, automation_api: str = "all") -> Dict[str, Any]:
+    ################################## Builds endpoints
+    async def lookup_builds(self, build_source: str) -> Dict[str, Any]:
         """
-        Returns the set of supported operating system and browser combinations for the specified automation framework.
-        :param automation_api: The framework for which you are requesting supported platforms. Valid values are: 'all', 'appium', and 'webdriver'. Defaults to 'all'.
+        Queries the requesting account and returns a summary of each build matching the query, including the ID value,
+        which may be a required parameter of other API calls related to a specific build.You can narrow the results of
+        your query using any of the optional filtering parameters.
+        :param build_source: The type of device for which you are getting builds. Valid values are: 'rdc' - Real Device
+            Builds, 'vdc' - Emulator or Simulator Builds
         """
-        response = await self.sauce_api_call(f"rest/v1/info/platforms/{automation_api}")
+        response = await self.sauce_api_call(f"v2/builds/{build_source}/")
+        data = response.json()
+
+        return data
+
+    async def get_build(self, build_source:str, build_id:str) -> Dict[str, Any]:
+        """
+        Retrieve the details related to a specific build by passing its unique ID in the request.
+        :param build_source: Required. The type of device for which you are getting builds. Valid values are: 'rdc' -
+            Real Device Builds, 'vdc' - Emulator or Simulator Builds
+        :param build_id: Required. The unique identifier of the build to retrieve. You can look up build IDs in your
+            organization using the Lookup Builds endpoint.
+        """
+        response = await self.sauce_api_call(f"v2/builds/{build_source}/{build_id}/")
+        data = response.json()
+
+        return data
+
+    async def get_build_for_job(self, build_source:str, job_id:str) -> Dict[str, Any]:
+        """
+        Retrieve the details related to a specific build by passing its unique ID in the request.
+        :param build_source: Required. The type of device for which you are getting builds. Valid values are: 'rdc'
+            (Real Device Builds), 'vdc' (Emulator or Simulator Builds)
+        :param job_id: Required. The unique identifier of the job whose build you are looking up. You can look up job
+            IDs in your organization using the Get Jobs endpoint.
+        """
+        response = await self.sauce_api_call(f"v2/builds/{build_source}/jobs/{job_id}/build/")
+        data = response.json()
+
+        return data
+
+    async def lookup_jobs_in_build(self, build_source:str, build_id:str) -> Dict[str, Any]:
+        """
+        Retrieve the details related to a specific build by passing its unique ID in the request.
+        :param build_source: Required. The type of device for which you are getting builds. Valid values are: 'rdc'
+            (Real Device Builds), 'vdc' (Emulator or Simulator Builds)
+        :param build_id: Required. The unique identifier of the build whose jobs you are looking up. You can look up
+            build IDs in your organization using the Lookup Builds endpoint.
+        """
+        response = await self.sauce_api_call(f"v2/builds/{build_source}/{build_id}/jobs/")
         data = response.json()
 
         return data
@@ -315,7 +406,7 @@ class SauceLabsAgent:
         :param end: The ending date of the period during which the test runs executed, in YYYY-MM-DDTHH:mm:ssZ (UTC) format.
         """
         response = await self.sauce_api_call(f"v1/analytics/trends/builds_tests/test-metrics?start={start}&end={end}")
-        # data = response.json()
+        data = response.json()
 
         return response
 
@@ -330,47 +421,15 @@ class SauceLabsAgent:
         else:
             return response
 
-    async def get_org_concurrency(self, org_id: str) -> Dict[str, Any]:
+    async def get_supported_platforms(self, automation_api: str = "all") -> Dict[str, Any]:
         """
-        Return information about concurrency usage for organization:
-        - maximum, minimum concurrency for given granularity (monthly, weekly, daily, hourly),
-        - teams' share for the organization maximum concurrency for given granularity (in percentage),
-        - current limits.
-        :param org_id: Return results only for the specified org_id
-        :return: Json report containing org concurrency usage
+        Returns the set of supported operating system and browser combinations for the specified automation framework.
+        :param automation_api: The framework for which you are requesting supported platforms. Valid values are: 'all', 'appium', and 'webdriver'. Defaults to 'all'.
         """
-        if org_id is None:
-            account_info = await self.account_info()
-            org_id = account_info["results"][0]["organization"]["id"]
+        response = await self.sauce_api_call(f"rest/v1/info/platforms/{automation_api}")
+        data = response.json()
 
-        response = await self.sauce_api_call(f"usage-analytics/v1/concurrency/org?org_id={org_id}")
-        org_data = response.json()
-
-        return org_data
-
-    async def get_team_concurrency(self, org_id: str, team_id: str) -> Dict[str, Any]:
-        """
-        Return information about concurrency usage for teams:
-            - maximum, minimum concurrency for given granularity (monthly, weekly, daily, hourly),
-            - current limits.
-        Concurrency data is broken down by resource types for:
-        - Virtual Cloud:
-            - virtual machines,
-            - mac virtual machines,
-            - mac arm virtual machines,
-            - total virtual machines, combining all resource types.
-        - Real Device Cloud:
-            - private devices,
-            - public devices,
-            - total virtual machines, combining all resource types.
-        :param org_id:
-        :param team_id:
-        :return: Json report containing team concurrency usage
-        """
-        response = await self.sauce_api_call(f"usage-analytics/v1/concurrency/teams?org_id={org_id}&team_id={team_id}")
-        team_data = response.json()
-
-        return team_data
+        return data
 
 # --- Main Application Setup ---
 if __name__ == "__main__":
