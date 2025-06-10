@@ -2,7 +2,51 @@ from datetime import datetime
 from typing import List, Dict, Optional, Union
 from pydantic import BaseModel, Field, RootModel
 
-# --- Nested Models for Request ---
+# --- Account Models ---
+
+
+class ResultItem(BaseModel):
+    """
+    Represents a single result item within the account information.
+    """
+
+    id: str
+    name: str
+    # Assuming the settings object can contain various basic value types.
+    settings: Dict[str, Union[str, int, bool, None]]
+    # Assuming the group object can also contain various basic value types.
+    group: Dict[str, Union[str, int, bool, None]]
+    is_default: bool
+    org_uuid: str
+    user_count: int
+
+
+class AccountInfo(BaseModel):
+    """
+    The main model for the account information response.
+    """
+
+    # Assuming links is a dictionary of string keys and URL string values.
+    links: Dict[str, str]
+    count: int
+    results: List[ResultItem]
+
+
+#  --- Jobs Models ---
+
+
+class TestAssets(BaseModel):
+    """
+    A Pydantic model to represent the asset files for a test.
+    """
+
+    # Use Field with an alias for keys that are not valid Python identifiers
+    video_mp4: str = Field(..., alias="video.mp4")
+    selenium_log: str = Field(..., alias="selenium-log")
+    sauce_log: str = Field(..., alias="sauce-log")
+    video: str
+    cdp_log: Optional[str] = Field(..., alias="cdp-log")
+    screenshots: List[str]
 
 
 class Browser(BaseModel):
@@ -28,15 +72,11 @@ class AlwaysMatch(BaseModel):
 
 class RequestCapabilities(BaseModel):
     alwaysMatch: AlwaysMatch
-    # The 'firstMatch' array is empty, so we define it as a list of dictionaries.
     firstMatch: List[Dict[str, str]]
 
 
 class Request(BaseModel):
     capabilities: RequestCapabilities
-
-
-# --- Nested Models for Result ---
 
 
 class GoogChromeOptionsResult(BaseModel):
@@ -88,101 +128,72 @@ class Result(BaseModel):
     capabilities: ResultCapabilities
 
 
-class TeamShare(BaseModel):
+class TestLog(BaseModel):
     """
-    Represents the concurrency share for a specific team.
-    """
-
-    team_id: str
-    pct: float
-    avg_concurrency: float
-
-
-class ConcurrencyForOrg(BaseModel):
-    """
-    Represents the concurrency metrics for a resource.
+    Represents a log entry from a test session.
     """
 
-    max_val: int = Field(..., alias="max")
-    min_val: int = Field(..., alias="min")
-    max_org_concurrency_team_share: List[TeamShare]
+    screenshot: int
+    # 'suggestion_values' is an empty list in the example. Assuming a list of strings.
+    # This may need to be adjusted if the actual type is different.
+    suggestion_values: List[str]
+    start_time: float
+    request: Request
+    result: Result
+    duration: float
+    path: str
+    hide_from_ui: bool
+    # 'between_commands' is null in the example. Assuming it could be a string if not null.
+    # This may need to be adjusted based on possible non-null values.
+    between_commands: Optional[str]
+    visual_command: bool
+    HTTPStatus: int
+    # 'suggestion' is null in the example. Assuming it could be a string if not null.
+    suggestion: Optional[str]
+    request_id: str
+    in_video_timeline: float
+    method: str
+    statusCode: int
 
 
-class Concurrency(BaseModel):
+class JobDetails(BaseModel):
     """
-    Represents the concurrency metrics for a resource.
-    """
-
-    max_val: int = Field(..., alias="max")
-    min_val: int = Field(..., alias="min")
-    max_org_concurrency_team_share: List[int]
-
-
-class Limits(BaseModel):
-    """
-    Represents the concurrency limits for a resource.
-    """
-
-    total: int
-    resource: int
-    total_original: int
-    resource_original: int
-
-
-class OrgValue(BaseModel):
-    """
-    Represents a specific resource usage data point within a time entry.
+    A Pydantic model representing the details of a Sauce Labs job.
     """
 
-    resource_type: str
-    concurrency: ConcurrencyForOrg
-    limits: Limits
-
-
-class Value(BaseModel):
-    """
-    Represents a specific resource usage data point within a time entry.
-    """
-
-    resource_type: str
-    concurrency: Concurrency
-    limits: Limits
-
-
-class OrgTimeData(BaseModel):
-    """
-    Represents a timestamped entry containing resource usage values.
-    """
-
-    time: datetime
-    values: List[OrgValue]
-
-
-class TimeData(BaseModel):
-    """
-    Represents a timestamped entry containing resource usage values.
-    """
-
-    time: datetime
-    values: List[Value]
-
-
-class TeamData(BaseModel):
-    """
-    Represents the concurrency data for a specific team.
-    """
-
-    team_id: str
-    data: List[TimeData]
-
-
-class ByOrg(BaseModel):
-    """
-    Represents the concurrency data for a specific organization.
-    """
-
-    org_id: str
-    data: List[OrgTimeData]
+    browser_short_version: str
+    video_url: str
+    creation_time: datetime
+    # 'custom-data' can be null and is not a valid Python identifier, so we use an alias.
+    # Assuming it's a dictionary of key-value pairs if not null.
+    custom_data: Optional[Dict[str, str]] = Field(..., alias="custom-data")
+    browser_version: str
+    owner: str
+    automation_backend: str
+    id: str
+    collects_automator_log: bool
+    record_screenshots: bool
+    record_video: bool
+    build: Optional[str]
+    passed: Optional[bool]
+    public: str
+    assigned_tunnel_id: Optional[str]
+    status: str
+    log_url: str
+    start_time: datetime
+    proxied: bool
+    modification_time: datetime
+    tags: List[str]
+    name: str
+    commands_not_successful: int
+    consolidated_status: str
+    selenium_version: Optional[str]
+    manual: bool
+    end_time: datetime
+    error: Optional[str]
+    os: str
+    breakpointed: Optional[bool]
+    browser: str
 
 
 class SauceOptions(BaseModel):
@@ -240,6 +251,25 @@ class Job(BaseModel):
     breakpointed: Optional[bool]
 
 
+class RecentJobs(RootModel[List[Job]]):
+    """
+    The root model representing a list of recent jobs.
+    """
+
+    root: List[Job]
+
+
+#  --- Insights Models ---
+
+
+class Meta(BaseModel):
+    """
+    Represents the meta object containing response metadata.
+    """
+
+    status: int
+
+
 class TestAnalyticsItem(BaseModel):
     """
     Represents a single test item from the analytics endpoint.
@@ -264,12 +294,14 @@ class TestAnalyticsItem(BaseModel):
     status: str
 
 
-class Meta(BaseModel):
+class TestAnalytics(BaseModel):
     """
-    Represents the meta object containing response metadata.
+    The main model for the test analytics response.
     """
 
-    status: int
+    has_more: bool
+    items: List[TestAnalyticsItem]
+    meta: Meta
 
 
 class RunSummary(BaseModel):
@@ -321,6 +353,15 @@ class Aggregations(BaseModel):
     avgRunTime: Optional[float] = None
 
 
+class TestMetrics(BaseModel):
+    """
+    The main model for the test metrics response.
+    """
+
+    meta: Meta
+    aggs: Aggregations
+
+
 class NameCount(BaseModel):
     """
     A reusable model for objects containing a name and a count.
@@ -363,39 +404,22 @@ class Bucket(BaseModel):
     aggs: TrendsAggregations
 
 
-class ResultItem(BaseModel):
+class TestTrends(BaseModel):
     """
-    Represents a single result item within the account information.
-    """
-
-    id: str
-    name: str
-    # Assuming the settings object can contain various basic value types.
-    settings: Dict[str, Union[str, int, bool, None]]
-    # Assuming the group object can also contain various basic value types.
-    group: Dict[str, Union[str, int, bool, None]]
-    is_default: bool
-    org_uuid: str
-    user_count: int
-
-
-class Platform(BaseModel):
-    """
-    Represents a single supported platform configuration.
+    The main model for the test trends analytics report.
     """
 
-    short_version: str
-    long_name: str
-    api_name: str
-    long_version: str
-    device: str
-    latest_stable_version: str
-    automation_backend: str
-    os: str
-    # Optional fields that only appear for certain automation backends
-    deprecated_backend_versions: Optional[List[str]] = None
-    recommended_backend_version: Optional[str] = None
-    supported_backend_versions: Optional[List[str]] = None
+    meta: Meta
+    buckets: List[Bucket]
+    metrics: Dict[str, Dict[str, int]]
+
+
+class BuildAggregations(BaseModel):
+    """
+    Represents the aggregation data for a single build.
+    """
+
+    status: List[NameCount]
 
 
 class TestItem(BaseModel):
@@ -414,14 +438,6 @@ class TestItem(BaseModel):
     os: str
     browser: str
     details_url: str
-
-
-class BuildAggregations(BaseModel):
-    """
-    Represents the aggregation data for a single build.
-    """
-
-    status: List[NameCount]
 
 
 class BuildItem(BaseModel):
@@ -457,55 +473,66 @@ class TestsMissingBuild(BaseModel):
     has_more: bool
 
 
-# --- Main Pydantic Models ---
-
-
-class TestLog(BaseModel):
+class AllBuildsAndTests(BaseModel):
     """
-    Represents a log entry from a test session.
+    The main model for the builds and tests response.
     """
 
-    screenshot: int
-    # 'suggestion_values' is an empty list in the example. Assuming a list of strings.
-    # This may need to be adjusted if the actual type is different.
-    suggestion_values: List[str]
-    start_time: float
-    request: Request
-    result: Result
-    duration: float
-    path: str
-    hide_from_ui: bool
-    # 'between_commands' is null in the example. Assuming it could be a string if not null.
-    # This may need to be adjusted based on possible non-null values.
-    between_commands: Optional[str]
-    visual_command: bool
-    HTTPStatus: int
-    # 'suggestion' is null in the example. Assuming it could be a string if not null.
-    suggestion: Optional[str]
-    request_id: str
-    in_video_timeline: float
-    method: str
-    statusCode: int
+    meta: Meta
+    builds: Builds
+    tests_missing_build: TestsMissingBuild
 
 
-class TestAssets(BaseModel):
+# --- Usage Analytics Models ---
+
+
+class Concurrency(BaseModel):
     """
-    A Pydantic model to represent the asset files for a test.
+    Represents the concurrency metrics for a resource.
     """
 
-    # Use Field with an alias for keys that are not valid Python identifiers
-    video_mp4: str = Field(..., alias="video.mp4")
-    selenium_log: str = Field(..., alias="selenium-log")
-    sauce_log: str = Field(..., alias="sauce-log")
+    max_val: int = Field(..., alias="max")
+    min_val: int = Field(..., alias="min")
+    max_org_concurrency_team_share: List[int]
 
-    # Standard field for 'video'
-    video: str
 
-    # 'cdp-log' can be null, so it's defined as Optional
-    cdp_log: Optional[str] = Field(..., alias="cdp-log")
+class Limits(BaseModel):
+    """
+    Represents the concurrency limits for a resource.
+    """
 
-    # 'screenshots' is a list of strings
-    screenshots: List[str]
+    total: int
+    resource: int
+    total_original: int
+    resource_original: int
+
+
+class Value(BaseModel):
+    """
+    Represents a specific resource usage data point within a time entry.
+    """
+
+    resource_type: str
+    concurrency: Concurrency
+    limits: Limits
+
+
+class TimeData(BaseModel):
+    """
+    Represents a timestamped entry containing resource usage values.
+    """
+
+    time: datetime
+    values: List[Value]
+
+
+class TeamData(BaseModel):
+    """
+    Represents the concurrency data for a specific team.
+    """
+
+    team_id: str
+    data: List[TimeData]
 
 
 class TeamConcurrency(BaseModel):
@@ -516,6 +543,54 @@ class TeamConcurrency(BaseModel):
     by_team: List[TeamData]
 
 
+class TeamShare(BaseModel):
+    """
+    Represents the concurrency share for a specific team.
+    """
+
+    team_id: str
+    pct: float
+    avg_concurrency: float
+
+
+class ConcurrencyForOrg(BaseModel):
+    """
+    Represents the concurrency metrics for a resource.
+    """
+
+    max_val: int = Field(..., alias="max")
+    min_val: int = Field(..., alias="min")
+    max_org_concurrency_team_share: List[TeamShare]
+
+
+class OrgValue(BaseModel):
+    """
+    Represents a specific resource usage data point within a time entry.
+    """
+
+    resource_type: str
+    concurrency: ConcurrencyForOrg
+    limits: Limits
+
+
+class OrgTimeData(BaseModel):
+    """
+    Represents a timestamped entry containing resource usage values.
+    """
+
+    time: datetime
+    values: List[OrgValue]
+
+
+class ByOrg(BaseModel):
+    """
+    Represents the concurrency data for a specific organization.
+    """
+
+    org_id: str
+    data: List[OrgTimeData]
+
+
 class OrgConcurrency(BaseModel):
     """
     The main model for the organization-level concurrency report.
@@ -524,92 +599,26 @@ class OrgConcurrency(BaseModel):
     by_org: ByOrg
 
 
-class JobDetails(BaseModel):
+# --- Platform Models ---
+
+
+class Platform(BaseModel):
     """
-    A Pydantic model representing the details of a Sauce Labs job.
+    Represents a single supported platform configuration.
     """
 
-    browser_short_version: str
-    video_url: str
-    creation_time: datetime
-    # 'custom-data' can be null and is not a valid Python identifier, so we use an alias.
-    # Assuming it's a dictionary of key-value pairs if not null.
-    custom_data: Optional[Dict[str, str]] = Field(..., alias="custom-data")
-    browser_version: str
-    owner: str
+    short_version: str
+    long_name: str
+    api_name: str
+    long_version: str
+    device: str
+    latest_stable_version: str
     automation_backend: str
-    id: str
-    collects_automator_log: bool
-    record_screenshots: bool
-    record_video: bool
-    build: Optional[str]
-    passed: Optional[bool]
-    public: str
-    assigned_tunnel_id: Optional[str]
-    status: str
-    log_url: str
-    start_time: datetime
-    proxied: bool
-    modification_time: datetime
-    tags: List[str]
-    name: str
-    commands_not_successful: int
-    consolidated_status: str
-    selenium_version: Optional[str]
-    manual: bool
-    end_time: datetime
-    error: Optional[str]
     os: str
-    breakpointed: Optional[bool]
-    browser: str
-
-
-class RecentJobs(RootModel[List[Job]]):
-    """
-    The root model representing a list of recent jobs.
-    """
-
-    root: List[Job]
-
-
-class TestAnalytics(BaseModel):
-    """
-    The main model for the test analytics response.
-    """
-
-    has_more: bool
-    items: List[TestAnalyticsItem]
-    meta: Meta
-
-
-class TestMetrics(BaseModel):
-    """
-    The main model for the test metrics response.
-    """
-
-    meta: Meta
-    aggs: Aggregations
-
-
-class TestTrends(BaseModel):
-    """
-    The main model for the test trends analytics report.
-    """
-
-    meta: Meta
-    buckets: List[Bucket]
-    metrics: Dict[str, Dict[str, int]]
-
-
-class AccountInfo(BaseModel):
-    """
-    The main model for the account information response.
-    """
-
-    # Assuming links is a dictionary of string keys and URL string values.
-    links: Dict[str, str]
-    count: int
-    results: List[ResultItem]
+    # Optional fields that only appear for certain automation backends
+    deprecated_backend_versions: Optional[List[str]] = None
+    recommended_backend_version: Optional[str] = None
+    supported_backend_versions: Optional[List[str]] = None
 
 
 class SupportedPlatforms(RootModel[List[Platform]]):
@@ -620,14 +629,7 @@ class SupportedPlatforms(RootModel[List[Platform]]):
     root: List[Platform]
 
 
-class AllBuildsAndTests(BaseModel):
-    """
-    The main model for the builds and tests response.
-    """
-
-    meta: Meta
-    builds: Builds
-    tests_missing_build: TestsMissingBuild
+# --- Status Models ---
 
 
 class SauceStatus(BaseModel):
