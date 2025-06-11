@@ -1,5 +1,5 @@
 from mcp.server import FastMCP
-from typing import Dict, Union  # For type hinting dicts
+from typing import Dict, Any, Union  # For type hinting dicts
 import httpx
 import sys
 import logging
@@ -131,7 +131,7 @@ class SauceLabsAgent:
         logging.info("Closing HTTPX client session.")
         await self.client.aclose()
 
-################################## Account endpoints
+    ################################## Account endpoints
     # Not exposed to the Agent. We can register if we need to, but it seems better to use the helper method.
     async def get_asset_url(self, job_id: str, asset_key: str) -> str:
         asset_list = await self.get_test_assets(job_id)
@@ -175,7 +175,9 @@ class SauceLabsAgent:
         :param name: Optional. Returns the set of teams that begin with the specified name value. For example, name=sauce would
             return all teams in the organization with names beginning with "sauce".
         """
-        response = await self.sauce_api_call(f"team-management/v1/teams?id={id}&name={name}")
+        response = await self.sauce_api_call(
+            f"team-management/v1/teams?id={id}&name={name}"
+        )
         return response.json()
 
     async def get_team(self, id: str) -> Dict[str, Any]:
@@ -214,7 +216,7 @@ class SauceLabsAgent:
         :param limit: Optional. Limit results to a maximum number per page. Default value is 20.
         :param offset: Optional. The starting record number from which to return results.
         """
-        response = await self.sauce_api_call(f"team-management/v1/users/")
+        response = await self.sauce_api_call("team-management/v1/users/")
         return response.json()
 
     async def get_user(self, id: str) -> Dict[str, Any]:
@@ -229,7 +231,7 @@ class SauceLabsAgent:
         """
         Retrieves the Sauce Labs active team for the currently authenticated user.
         """
-        response = await self.sauce_api_call(f"team-management/v1/users/me/active-team/")
+        response = await self.sauce_api_call("team-management/v1/users/me/active-team/")
         return response.json()
 
     async def lookup_service_accounts(self) -> Dict[str, Any]:
@@ -244,7 +246,7 @@ class SauceLabsAgent:
         :param limit: Optional. Limit results to a maximum number per page. Default value is 20.
         :param offset: Optional. The starting record number from which to return results.
         """
-        response = await self.sauce_api_call(f"team-management/v1/service-accounts/")
+        response = await self.sauce_api_call("team-management/v1/service-accounts/")
         return response.json()
 
     async def get_service_account(self, id: str) -> Dict[str, Any]:
@@ -254,9 +256,10 @@ class SauceLabsAgent:
             service account details view in the Sauce Labs UI. You can also look up the uuid using the Lookup
             Service Accounts endpoint.
         """
-        response = await self.sauce_api_call(f"team-management/v1/service-accounts/{id}/")
+        response = await self.sauce_api_call(
+            f"team-management/v1/service-accounts/{id}/"
+        )
         return response.json()
-     
 
     async def get_org_concurrency(
         self, org_id: str
@@ -269,13 +272,13 @@ class SauceLabsAgent:
         :param org_id: Return results only for the specified org_id
         :return: Json report containing org concurrency usage
         """
-       response = await self.sauce_api_call(
+        response = await self.sauce_api_call(
             f"usage-analytics/v1/concurrency/org?org_id={org_id}"
         )
         if isinstance(response, httpx.Response):
             return OrgConcurrency.model_validate(response.json())
         return response
-      
+
     async def get_team_concurrency(
         self, org_id: str, team_id: str
     ) -> Union[TeamConcurrency, Dict[str, str]]:
@@ -383,7 +386,7 @@ class SauceLabsAgent:
         return response
 
     ################################## Builds endpoints
-    
+
     async def lookup_builds(self, build_source: str) -> Dict[str, Any]:
         """
         Queries the requesting account and returns a summary of each build matching the query, including the ID value,
@@ -397,7 +400,7 @@ class SauceLabsAgent:
 
         return data
 
-    async def get_build(self, build_source:str, build_id:str) -> Dict[str, Any]:
+    async def get_build(self, build_source: str, build_id: str) -> Dict[str, Any]:
         """
         Retrieve the details related to a specific build by passing its unique ID in the request.
         :param build_source: Required. The type of device for which you are getting builds. Valid values are: 'rdc' -
@@ -410,7 +413,7 @@ class SauceLabsAgent:
 
         return data
 
-    async def get_build_for_job(self, build_source:str, job_id:str) -> Dict[str, Any]:
+    async def get_build_for_job(self, build_source: str, job_id: str) -> Dict[str, Any]:
         """
         Retrieve the details related to a specific build by passing its unique ID in the request.
         :param build_source: Required. The type of device for which you are getting builds. Valid values are: 'rdc'
@@ -418,12 +421,16 @@ class SauceLabsAgent:
         :param job_id: Required. The unique identifier of the job whose build you are looking up. You can look up job
             IDs in your organization using the Get Jobs endpoint.
         """
-        response = await self.sauce_api_call(f"v2/builds/{build_source}/jobs/{job_id}/build/")
+        response = await self.sauce_api_call(
+            f"v2/builds/{build_source}/jobs/{job_id}/build/"
+        )
         data = response.json()
 
         return data
 
-    async def lookup_jobs_in_build(self, build_source:str, build_id:str) -> Dict[str, Any]:
+    async def lookup_jobs_in_build(
+        self, build_source: str, build_id: str
+    ) -> Dict[str, Any]:
         """
         Retrieve the details related to a specific build by passing its unique ID in the request.
         :param build_source: Required. The type of device for which you are getting builds. Valid values are: 'rdc'
@@ -431,7 +438,9 @@ class SauceLabsAgent:
         :param build_id: Required. The unique identifier of the build whose jobs you are looking up. You can look up
             build IDs in your organization using the Lookup Builds endpoint.
         """
-        response = await self.sauce_api_call(f"v2/builds/{build_source}/{build_id}/jobs/")
+        response = await self.sauce_api_call(
+            f"v2/builds/{build_source}/{build_id}/jobs/"
+        )
         data = response.json()
 
         return data
@@ -450,8 +459,9 @@ class SauceLabsAgent:
 
         return data
 
-
-    async def get_tunnel_information(self, username: str, tunnel_id: str) -> Dict[str, Any]:
+    async def get_tunnel_information(
+        self, username: str, tunnel_id: str
+    ) -> Dict[str, Any]:
         """
         Returns information about the specified tunnel. The word "tunnel" in this context refers to usage of \
         the Sauce Connect tool.
@@ -470,25 +480,31 @@ class SauceLabsAgent:
         :param client_version: Optional. Returns download information for the specified Sauce Connect client
             version (For example, '5.2.3').
         """
-        response = await self.sauce_api_call(f"rest/v1/public/tunnels/info/versions?client_version={client_version}")
+        response = await self.sauce_api_call(
+            f"rest/v1/public/tunnels/info/versions?client_version={client_version}"
+        )
         data = response.json()
 
         return data
 
-    async def get_current_jobs_for_tunnel(self, username: str, tunnel_id: str) -> Dict[str, Any]:
+    async def get_current_jobs_for_tunnel(
+        self, username: str, tunnel_id: str
+    ) -> Dict[str, Any]:
         """
         Returns the number of currently running jobs for the specified tunnel. The word "tunnel" in this context refers
         to usage of the Sauce Connect tool.
         :param username: Required. The authentication username of the owner of the requested tunnel.
         :param tunnel_id: Required. The unique identifier of the requested tunnel.
         """
-        response = await self.sauce_api_call(f"rest/v1/{username}/tunnels/{tunnel_id}/num_jobs")
+        response = await self.sauce_api_call(
+            f"rest/v1/{username}/tunnels/{tunnel_id}/num_jobs"
+        )
         data = response.json()
 
         return data
 
     ################################## Insights endpoints
-     async def get_test_analytics(
+    async def get_test_analytics(
         self, start: str, end: str
     ) -> Union[TestAnalytics, Dict[str, str]]:
         """
@@ -553,7 +569,7 @@ class SauceLabsAgent:
         return response
 
     ################################## Sauce system metrics
-    
+
     async def get_sauce_status(self) -> Union[SauceStatus, Dict[str, str]]:
         """
         Returns the current (30 second cache) availability of the Sauce Labs platform. This should tell you whether Sauce is 'up' or 'down'
@@ -563,14 +579,13 @@ class SauceLabsAgent:
             return SauceStatus.model_validate(response.json())
         return response
 
- 
-################################## Storage endpoints
+    ################################## Storage endpoints
 
     async def get_storage_files(self) -> Dict[str, Any]:
         """
         Returns the set of files that have been uploaded to Sauce Storage by the requestor.
         """
-        response = await self.sauce_api_call(f"v1/storage/files")
+        response = await self.sauce_api_call("v1/storage/files")
         data = response.json()
 
         return data
@@ -579,7 +594,7 @@ class SauceLabsAgent:
         """
         Returns an array of groups (apps containing multiple files) currently in storage for the authenticated requestor.
         """
-        response = await self.sauce_api_call(f"v1/storage/groups")
+        response = await self.sauce_api_call("v1/storage/groups")
         data = response.json()
 
         return data
@@ -593,6 +608,7 @@ class SauceLabsAgent:
         data = response.json()
 
         return data
+
 
 # --- Main Application Setup ---
 if __name__ == "__main__":
