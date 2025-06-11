@@ -89,6 +89,11 @@ class SauceLabsAgent:
         self.mcp.tool()(self.get_storage_groups)
         self.mcp.tool()(self.get_storage_groups_settings)
 
+        ### Real Devices
+        self.mcp.tool()(self.get_devices)
+        self.mcp.tool()(self.get_specific_device)
+        self.mcp.tool()(self.get_devices_status)
+
         # self.mcp.tool()(self.get_all_builds_and_tests)
         # self.mcp.tool()(self.get_network_har_file)
         # self.mcp.tool()(self.get_performance_json_file)
@@ -569,7 +574,6 @@ class SauceLabsAgent:
         return response
 
     ################################## Sauce system metrics
-
     async def get_sauce_status(self) -> Union[SauceStatus, Dict[str, str]]:
         """
         Returns the current (30 second cache) availability of the Sauce Labs platform. This should tell you whether Sauce is 'up' or 'down'
@@ -579,15 +583,102 @@ class SauceLabsAgent:
             return SauceStatus.model_validate(response.json())
         return response
 
-    ################################## Storage endpoints
+    async def get_org_concurrency(self, org_id: str) -> Dict[str, Any]:
+        """
+        Return information about concurrency usage for organization:
+        - maximum, minimum concurrency for given granularity (monthly, weekly, daily, hourly),
+        - teams' share for the organization maximum concurrency for given granularity (in percentage),
+        - current limits.
+        :param org_id: Return results only for the specified org_id
+        :return: Json report containing org concurrency usage
+        """
+        if org_id is None:
+            account_info = await self.account_info()
+            org_id = account_info["results"][0]["organization"]["id"]
 
+    ################################## Real Device endpoints
+    async def get_devices(self) -> Dict[str, Any]:
+        """
+        Get the set of real devices located at the data center, as well as the operating system/browser
+        combinations and identifying information for each device.
+        """
+        response = await self.sauce_api_call(f"v1/rdc/devices")
+        data = response.json()
+        return data
+
+    async def get_specific_device(self, device_id:str) -> Dict[str, Any]:
+        """
+        Get information about the device specified in the request.
+        :param device_id: The unique identifier of a device in the Sauce Labs data center. You can look up device
+            IDs using the get_devices Tool.
+        """
+        response = await self.sauce_api_call(f"v1/rdc/devices/{device_id}")
+        data = response.json()
+        return data
+
+    async def get_devices_status(self, device_id: str) -> Dict[str, Any]:
+        """
+        Returns a list of devices in the data center along with their current states. Each device is represented by a
+        descriptor, indicating its model, and includes information on availability, usage status, and whether it is
+        designated as a private device. Note that the inUseBy field is exposed only for private devices
+        isPrivateDevice: true. Users can view information about who is currently using the device only if they have
+        the required permissions. Lack of permissions will result in the inUseBy field being omitted from the response
+        for private devices.
+        Available States:
+            AVAILABLE	Device is available and ready to be allocated
+            IN_USE	    Device is currently in use
+            CLEANING	Device is being cleaned (only available for private devices)
+            MAINTENANCE	Device is in maintenance (only available for private devices)
+            REBOOTING	Device is rebooting (only available for private devices)
+            OFFLINE	    Device is offline (only available for private devices)
+        """
+        response = await self.sauce_api_call(f"v1/rdc/devices/status")
+        data = response.json()
+        return data
+
+    ################################## Real Device Jobs endpoints
+    async def get_real_device_jobs(self, limit: int = 5, offset: int = 1, type: str = None) -> Dict[str, Any]:
+        """
+        Get a list of jobs that are actively running on real devices in the data center.
+        :param limit: The maximum number of jobs to return.
+        :param offset: Limit results to those following this index number. Defaults to 1.
+        :param type: Filter results to show manual tests only with LIVE.
+        """
+        response = await self.sauce_api_call(f"v1/rdc/jobs?limit={limit}&offset={offset}")
+        data = response.json()
+        return data
+
+    async def get_specific_real_device(self, job_id: str) -> Dict[str, Any]:
+        """
+        Get information about a specific job running on a real device at the data center.
+        :param job_id: Required. The unique identifier of a job running on a real device in the data center. You can look up job
+            IDs using the Get Real Device Jobs endpoint.
+        """
+        response = await self.sauce_api_call(f"v1/rdc/jobs/{job_id}")
+        data = response.json()
+        return data
+
+    async def get_specific_real_device_job_asset(self, job_id: str) -> Dict[str, Any]:
+        """
+        Download a specific asset for a job after it has completed running on a real device at the data center. The
+        available assets for a specific job depend on the test framework and whether the corresponding feature was
+        enabled during the test.
+        :param job_id: Required. The unique identifier of a job running on a real device in the data center. You can look up job
+            IDs using the Get Real Device Jobs endpoint.
+        :param asset_type: Required. The unique identifier of a job running on a real device in the data center. You can look up job
+            IDs using the Get Real Device Jobs endpoint.
+        """
+        response = await self.sauce_api_call(f"v1/rdc/jobs/{job_id}")
+        data = response.json()
+        return data
+
+    ################################## Storage endpoints
     async def get_storage_files(self) -> Dict[str, Any]:
         """
         Returns the set of files that have been uploaded to Sauce Storage by the requestor.
         """
         response = await self.sauce_api_call("v1/storage/files")
         data = response.json()
-
         return data
 
     async def get_storage_groups(self) -> Dict[str, Any]:
@@ -596,7 +687,6 @@ class SauceLabsAgent:
         """
         response = await self.sauce_api_call("v1/storage/groups")
         data = response.json()
-
         return data
 
     async def get_storage_groups_settings(self, group_id: str) -> Dict[str, Any]:
