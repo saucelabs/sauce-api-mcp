@@ -1,14 +1,39 @@
 from mcp.server import FastMCP
-from typing import Dict, Any, Coroutine, Union  # For type hinting dicts
+from typing import Dict, Any, Union  # For type hinting dicts
 import httpx
 import sys
 import logging
 
-logging.basicConfig(level=logging.INFO, stream=sys.stderr,
-                    format='>>>>>>>>>>>>%(levelname)s: %(message)s')
+from models import (
+    TestLog,
+    TestAssets,
+    TeamConcurrency,
+    OrgConcurrency,
+    JobDetails,
+    RecentJobs,
+    TestAnalytics,
+    TestMetrics,
+    TestTrends,
+    AccountInfo,
+    AllBuildsAndTests,
+    SauceStatus,
+)
+
+logging.basicConfig(
+    level=logging.INFO,
+    stream=sys.stderr,
+    format=">>>>>>>>>>>>%(levelname)s: %(message)s",
+)
+
 
 class SauceLabsAgent:
-    def __init__(self, mcp_server: FastMCP, access_key: str, username: str, data_center="us-west-1"):
+    def __init__(
+        self,
+        mcp_server: FastMCP,
+        access_key: str,
+        username: str,
+        data_center: str = "us-west-1",
+    ):
         sys.stderr.write(">>>>>>>>>>>>Initializing SauceLabsAgent\n")
         self.mcp = mcp_server
 
@@ -72,48 +97,64 @@ class SauceLabsAgent:
         logging.info("SauceAPI client initialized and resource manifest loaded.")
 
     # Not exposed to the Agent
-    async def sauce_api_call(self, relative_endpoint, method="GET", **kwargs):
+    async def sauce_api_call(
+        self, relative_endpoint: str, method: str = "GET"
+    ) -> Union[httpx.Response, dict[str, str]]:
         try:
             response = await self.client.request(method, relative_endpoint)
             response.raise_for_status()
             return response
 
         except httpx.HTTPStatusError as e:
-            sys.stderr.write(f">>>>>>>>>>>>HTTP error fetching data from {relative_endpoint}: {e}\n")
-            return {"error": f"Failed to retrieve from {relative_endpoint}: {e.response.status_code} - {e.response.text}"}
+            sys.stderr.write(
+                f">>>>>>>>>>>>HTTP error fetching data from {relative_endpoint}: {e}\n"
+            )
+            return {
+                "error": f"Failed to retrieve from {relative_endpoint}: {e.response.status_code} - {e.response.text}"
+            }
         except httpx.RequestError as e:
-            sys.stderr.write(f">>>>>>>>>>>>Network error fetching data from {relative_endpoint}: {e}\n")
-            return {"error": f"Network error while fetching data from {relative_endpoint}: {e}"}
+            sys.stderr.write(
+                f">>>>>>>>>>>>Network error fetching data from {relative_endpoint}: {e}\n"
+            )
+            return {
+                "error": f"Network error while fetching data from {relative_endpoint}: {e}"
+            }
         except Exception as e:
-            sys.stderr.write(f">>>>>>>>>>>>An unexpected error occurred from {relative_endpoint}: {e}\n")
-            return {"error": f"An unexpected error occurred from {relative_endpoint}: {e}"}
+            sys.stderr.write(
+                f">>>>>>>>>>>>An unexpected error occurred from {relative_endpoint}: {e}\n"
+            )
+            return {
+                "error": f"An unexpected error occurred from {relative_endpoint}: {e}"
+            }
 
-    async def aclose(self):
+    async def aclose(self) -> None:
         logging.info("Closing HTTPX client session.")
         await self.client.aclose()
 
-################################## Account endpoints
+    ################################## Account endpoints
     # Not exposed to the Agent. We can register if we need to, but it seems better to use the helper method.
     async def get_asset_url(self, job_id: str, asset_key: str) -> str:
         asset_list = await self.get_test_assets(job_id)
-        return f"rest/v1/{self.username}/jobs/{job_id}/assets/" + asset_list[asset_key]
+        asset_url = getattr(asset_list, asset_key)
+        if isinstance(asset_url, str):
+            return f"rest/v1/{self.username}/jobs/{job_id}/assets/" + asset_url
+        raise ValueError(f"Asset must be string, {asset_key} is type {type(asset_url)}")
 
     # This method populates the Resource at sauce://account
-    async def account_info(self) -> Dict[str, Any]:
+    async def account_info(self) -> Union[AccountInfo, Dict[str, str]]:
         """
         Retrieves detailed account information for the user associated with this client.
         Refer to `SauceAPI.resource_manifest['account']['methods']['get_account_info']` for full documentation.
         """
-        endpoint = f"team-management/v1/users?username={self.username}"
-        response = await self.sauce_api_call(endpoint)
+        response = await self.sauce_api_call(
+            f"team-management/v1/users?username={self.username}"
+        )
 
-        if isinstance(response, dict) and "error" in response:
-            return response
+        if isinstance(response, httpx.Response):
+            return AccountInfo.model_validate(response.json())
+        return response
 
-        account_data = response.json()
-        return account_data
-
-    async def get_account_info(self) -> Dict[str, Any]:
+    async def get_account_info(self) -> Union[AccountInfo, Dict[str, str]]:
         """
         Provides the current user's Sauce Labs account information,
         including username, jobs run, minutes used, and overall account status.
@@ -134,7 +175,9 @@ class SauceLabsAgent:
         :param name: Optional. Returns the set of teams that begin with the specified name value. For example, name=sauce would
             return all teams in the organization with names beginning with "sauce".
         """
-        response = await self.sauce_api_call(f"team-management/v1/teams?id={id}&name={name}")
+        response = await self.sauce_api_call(
+            f"team-management/v1/teams?id={id}&name={name}"
+        )
         return response.json()
 
     async def get_team(self, id: str) -> Dict[str, Any]:
@@ -173,7 +216,7 @@ class SauceLabsAgent:
         :param limit: Optional. Limit results to a maximum number per page. Default value is 20.
         :param offset: Optional. The starting record number from which to return results.
         """
-        response = await self.sauce_api_call(f"team-management/v1/users/")
+        response = await self.sauce_api_call("team-management/v1/users/")
         return response.json()
 
     async def get_user(self, id: str) -> Dict[str, Any]:
@@ -188,7 +231,7 @@ class SauceLabsAgent:
         """
         Retrieves the Sauce Labs active team for the currently authenticated user.
         """
-        response = await self.sauce_api_call(f"team-management/v1/users/me/active-team/")
+        response = await self.sauce_api_call("team-management/v1/users/me/active-team/")
         return response.json()
 
     async def lookup_service_accounts(self) -> Dict[str, Any]:
@@ -203,7 +246,7 @@ class SauceLabsAgent:
         :param limit: Optional. Limit results to a maximum number per page. Default value is 20.
         :param offset: Optional. The starting record number from which to return results.
         """
-        response = await self.sauce_api_call(f"team-management/v1/service-accounts/")
+        response = await self.sauce_api_call("team-management/v1/service-accounts/")
         return response.json()
 
     async def get_service_account(self, id: str) -> Dict[str, Any]:
@@ -213,10 +256,14 @@ class SauceLabsAgent:
             service account details view in the Sauce Labs UI. You can also look up the uuid using the Lookup
             Service Accounts endpoint.
         """
-        response = await self.sauce_api_call(f"team-management/v1/service-accounts/{id}/")
+        response = await self.sauce_api_call(
+            f"team-management/v1/service-accounts/{id}/"
+        )
         return response.json()
 
-    async def get_org_concurrency(self, org_id: str) -> Dict[str, Any]:
+    async def get_org_concurrency(
+        self, org_id: str
+    ) -> Union[OrgConcurrency, Dict[str, str]]:
         """
         Return information about concurrency usage for organization:
         - maximum, minimum concurrency for given granularity (monthly, weekly, daily, hourly),
@@ -225,16 +272,16 @@ class SauceLabsAgent:
         :param org_id: Return results only for the specified org_id
         :return: Json report containing org concurrency usage
         """
-        if org_id is None:
-            account_info = await self.account_info()
-            org_id = account_info["results"][0]["organization"]["id"]
+        response = await self.sauce_api_call(
+            f"usage-analytics/v1/concurrency/org?org_id={org_id}"
+        )
+        if isinstance(response, httpx.Response):
+            return OrgConcurrency.model_validate(response.json())
+        return response
 
-        response = await self.sauce_api_call(f"usage-analytics/v1/concurrency/org?org_id={org_id}")
-        org_data = response.json()
-
-        return org_data
-
-    async def get_team_concurrency(self, org_id: str, team_id: str) -> Dict[str, Any]:
+    async def get_team_concurrency(
+        self, org_id: str, team_id: str
+    ) -> Union[TeamConcurrency, Dict[str, str]]:
         """
         Return information about concurrency usage for teams:
             - maximum, minimum concurrency for given granularity (monthly, weekly, daily, hourly),
@@ -253,75 +300,93 @@ class SauceLabsAgent:
         :param team_id:
         :return: Json report containing team concurrency usage
         """
-        response = await self.sauce_api_call(f"usage-analytics/v1/concurrency/teams?org_id={org_id}&team_id={team_id}")
-        team_data = response.json()
-
-        return team_data
+        response = await self.sauce_api_call(
+            f"usage-analytics/v1/concurrency/teams?org_id={org_id}&team_id={team_id}"
+        )
+        if isinstance(response, httpx.Response):
+            return TeamConcurrency.model_validate(response.json())
+        return response
 
     ################################## Jobs endpoints
     # This is exposed to the Agent in case the user wants to see the links that will click through to the Sauce UI
-    async def get_test_assets(self, job_id: str) -> Dict[str, Any]:
+    async def get_test_assets(self, job_id: str) -> Union[TestAssets, Dict[str, str]]:
         """
         Returns the list of all assets for a test, based on the job ID.
         :param job_id: The Sauce Labs Job ID.
         :return: JSON containing a list of assets, from which the URL can be derived.
         """
         response = await self.sauce_api_call(f"rest/v1/jobs/{job_id}/assets")
-        return response.json()
+        if isinstance(response, httpx.Response):
+            return TestAssets.model_validate(response.json())
+        return response
 
-    async def get_log_json_file(self, job_id) -> Dict[str, Any]:
+    async def get_log_json_file(self, job_id: str) -> Union[TestLog, Dict[str, str]]:
         """
         Shows the complete log of a Sauce Labs test, in structured json format.
         """
         asset_url = await self.get_asset_url(job_id, "sauce-log")
         response = await self.sauce_api_call(asset_url)
-        return response.json()
+        if isinstance(response, httpx.Response):
+            return TestLog.model_validate(response.json())
+        return response
 
-    async def get_selenium_log_file(self, job_id) -> str:
+    async def get_selenium_log_file(self, job_id: str) -> Union[str, Dict[str, str]]:
         """
         Shows the complete log of a Sauce Labs test, in unstructured raw format.
         """
         asset_url = await self.get_asset_url(job_id, "selenium-server.log")
         response = await self.sauce_api_call(asset_url)
+        if isinstance(response, httpx.Response):
+            return response.json()
         return response
 
-    async def get_network_har_file(self, job_id) -> Dict[str, Any]:
+    async def get_network_har_file(self, job_id: str) -> Dict[str, str]:
         """
         Returns the HAR file of network traffic gathered during the test, in structured json format.
         """
-        asset_url = self.get_asset_url(job_id, "network.har")
+        asset_url = await self.get_asset_url(job_id, "network.har")
         response = await self.sauce_api_call(asset_url)
-        return response.json()
+        if isinstance(response, httpx.Response):
+            return response.json()
+        return response
 
-    async def get_performance_json_file(self, job_id) -> Dict[str, Any]:
+    async def get_performance_json_file(self, job_id: str) -> Dict[str, str]:
         """
         Returns the Performance log of the test, in structured json format.
         """
         asset_url = await self.get_asset_url(job_id, "performance.json")
         response = await self.sauce_api_call(asset_url)
-        return response.json()
+        if isinstance(response, httpx.Response):
+            return response.json()
+        return response
 
-    async def get_job_details(self, job_id: str) -> Dict[str, Any]:
+    async def get_job_details(self, job_id: str) -> Union[JobDetails, Dict[str, str]]:
         """
         Retrieves the execution details of a particular job, by ID.
         """
         response = await self.sauce_api_call(f"rest/v1/{self.username}/jobs/{job_id}")
-        data = response.json()
-        return data
+        if isinstance(response, httpx.Response):
+            return JobDetails.model_validate(response.json())
+        return response
 
-    async def get_recent_jobs(self, limit: int = 5) -> Dict[str, Any]:
+    async def get_recent_jobs(
+        self, limit: int = 5
+    ) -> Union[RecentJobs, Dict[str, str]]:
         """
         Retrieves a list of the most recent jobs run on Sauce Labs for the current user.
         Allows specifying the number of jobs to retrieve, up to a maximum.
         Useful for quickly checking the status of recent test runs.
         :param limit: The upper limit (integer) of jobs to retrieve. Max is 100
         """
-        response = await self.sauce_api_call(f"rest/v1/{self.username}/jobs?limit={limit}")
-        data = response.json()
-
-        return data
+        response = await self.sauce_api_call(
+            f"rest/v1/{self.username}/jobs?limit={limit}"
+        )
+        if isinstance(response, httpx.Response):
+            return RecentJobs.model_validate(response.json())
+        return response
 
     ################################## Builds endpoints
+
     async def lookup_builds(self, build_source: str) -> Dict[str, Any]:
         """
         Queries the requesting account and returns a summary of each build matching the query, including the ID value,
@@ -335,7 +400,7 @@ class SauceLabsAgent:
 
         return data
 
-    async def get_build(self, build_source:str, build_id:str) -> Dict[str, Any]:
+    async def get_build(self, build_source: str, build_id: str) -> Dict[str, Any]:
         """
         Retrieve the details related to a specific build by passing its unique ID in the request.
         :param build_source: Required. The type of device for which you are getting builds. Valid values are: 'rdc' -
@@ -348,7 +413,7 @@ class SauceLabsAgent:
 
         return data
 
-    async def get_build_for_job(self, build_source:str, job_id:str) -> Dict[str, Any]:
+    async def get_build_for_job(self, build_source: str, job_id: str) -> Dict[str, Any]:
         """
         Retrieve the details related to a specific build by passing its unique ID in the request.
         :param build_source: Required. The type of device for which you are getting builds. Valid values are: 'rdc'
@@ -356,12 +421,16 @@ class SauceLabsAgent:
         :param job_id: Required. The unique identifier of the job whose build you are looking up. You can look up job
             IDs in your organization using the Get Jobs endpoint.
         """
-        response = await self.sauce_api_call(f"v2/builds/{build_source}/jobs/{job_id}/build/")
+        response = await self.sauce_api_call(
+            f"v2/builds/{build_source}/jobs/{job_id}/build/"
+        )
         data = response.json()
 
         return data
 
-    async def lookup_jobs_in_build(self, build_source:str, build_id:str) -> Dict[str, Any]:
+    async def lookup_jobs_in_build(
+        self, build_source: str, build_id: str
+    ) -> Dict[str, Any]:
         """
         Retrieve the details related to a specific build by passing its unique ID in the request.
         :param build_source: Required. The type of device for which you are getting builds. Valid values are: 'rdc'
@@ -369,7 +438,9 @@ class SauceLabsAgent:
         :param build_id: Required. The unique identifier of the build whose jobs you are looking up. You can look up
             build IDs in your organization using the Lookup Builds endpoint.
         """
-        response = await self.sauce_api_call(f"v2/builds/{build_source}/{build_id}/jobs/")
+        response = await self.sauce_api_call(
+            f"v2/builds/{build_source}/{build_id}/jobs/"
+        )
         data = response.json()
 
         return data
@@ -388,8 +459,9 @@ class SauceLabsAgent:
 
         return data
 
-
-    async def get_tunnel_information(self, username: str, tunnel_id: str) -> Dict[str, Any]:
+    async def get_tunnel_information(
+        self, username: str, tunnel_id: str
+    ) -> Dict[str, Any]:
         """
         Returns information about the specified tunnel. The word "tunnel" in this context refers to usage of \
         the Sauce Connect tool.
@@ -408,47 +480,63 @@ class SauceLabsAgent:
         :param client_version: Optional. Returns download information for the specified Sauce Connect client
             version (For example, '5.2.3').
         """
-        response = await self.sauce_api_call(f"rest/v1/public/tunnels/info/versions?client_version={client_version}")
+        response = await self.sauce_api_call(
+            f"rest/v1/public/tunnels/info/versions?client_version={client_version}"
+        )
         data = response.json()
 
         return data
 
-    async def get_current_jobs_for_tunnel(self, username: str, tunnel_id: str) -> Dict[str, Any]:
+    async def get_current_jobs_for_tunnel(
+        self, username: str, tunnel_id: str
+    ) -> Dict[str, Any]:
         """
         Returns the number of currently running jobs for the specified tunnel. The word "tunnel" in this context refers
         to usage of the Sauce Connect tool.
         :param username: Required. The authentication username of the owner of the requested tunnel.
         :param tunnel_id: Required. The unique identifier of the requested tunnel.
         """
-        response = await self.sauce_api_call(f"rest/v1/{username}/tunnels/{tunnel_id}/num_jobs")
+        response = await self.sauce_api_call(
+            f"rest/v1/{username}/tunnels/{tunnel_id}/num_jobs"
+        )
         data = response.json()
 
         return data
 
     ################################## Insights endpoints
-    async def get_test_analytics(self, start: str, end: str) -> Dict[str, Any]:
+    async def get_test_analytics(
+        self, start: str, end: str
+    ) -> Union[TestAnalytics, Dict[str, str]]:
         """
         Return run summary data for all tests that match the request criteria. Good for overall analytics about the requested period, not detailed test results
         :param start: The starting date of the period during which the test runs executed, in YYYY-MM-DDTHH:mm:ssZ (UTC) format.
         :param end: The ending date of the period during which the test runs executed, in YYYY-MM-DDTHH:mm:ssZ (UTC) format.
         """
-        response = await self.sauce_api_call(f"v1/analytics/tests?start={start}&end={end}")
-        data = response.json()
+        response = await self.sauce_api_call(
+            f"v1/analytics/tests?start={start}&end={end}"
+        )
+        if isinstance(response, httpx.Response):
+            return TestAnalytics.model_validate(response.json())
+        return response
 
-        return data
-
-    async def get_test_metrics(self, start: str, end: str) -> Dict[str, Any]:
+    async def get_test_metrics(
+        self, start: str, end: str
+    ) -> Union[TestMetrics, Dict[str, str]]:
         """
         Return an aggregate of metric values for runs of a specified test during the specified period.
         :param start: The starting date of the period during which the test runs executed, in YYYY-MM-DDTHH:mm:ssZ (UTC) format.
         :param end: The ending date of the period during which the test runs executed, in YYYY-MM-DDTHH:mm:ssZ (UTC) format.
         """
-        response = await self.sauce_api_call(f"v1/analytics/insights/test-metrics?start={start}&end={end}")
-        data = response.json()
+        response = await self.sauce_api_call(
+            f"v1/analytics/insights/test-metrics?start={start}&end={end}"
+        )
+        if isinstance(response, httpx.Response):
+            return TestMetrics.model_validate(response.json())
+        return response
 
-        return data
-
-    async def get_test_trends(self, start: str, end: str, interval: str) -> Dict[str, Any]:
+    async def get_test_trends(
+        self, start: str, end: str, interval: str
+    ) -> Union[TestTrends, Dict[str, str]]:
         """
         Return a set of data "buckets" representing tests that were run in each time interval defined by the request parameters.
         This shows test trends over the specified time period, and can help understand an organization/team/user's overall test
@@ -458,51 +546,46 @@ class SauceLabsAgent:
         :param time_range: Required. The amount of time backward from the current time that represents the period during which the test runs are executed. Acceptable units include d (day); h (hour); m (minute); s (second).
         :param interval: Required. Relative date filter. Available values are: 1m, 15m, 1h, 6h, 12h, 1d, 7d, 30d. Defaul is 1d
         """
-        response = await self.sauce_api_call(f"v1/analytics/trends/tests?start={start}&end={end}&interval={interval}")
+        response = await self.sauce_api_call(
+            f"v1/analytics/trends/tests?start={start}&end={end}&interval={interval}"
+        )
+        if isinstance(response, httpx.Response):
+            return TestTrends.model_validate(response.json())
         return response
 
-    async def get_all_builds_and_tests(self, start: str, end: str) -> Dict[str, Any]:
+    async def get_all_builds_and_tests(
+        self, start: str, end: str
+    ) -> Union[AllBuildsAndTests, Dict[str, str]]:
         """
         Return the set of all tests run in the specified period, grouped by whether each test was part of a build or not.
         :param start: The starting date of the period during which the test runs executed, in YYYY-MM-DDTHH:mm:ssZ (UTC) format.
         :param end: The ending date of the period during which the test runs executed, in YYYY-MM-DDTHH:mm:ssZ (UTC) format.
         """
-        response = await self.sauce_api_call(f"v1/analytics/trends/builds_tests/test-metrics?start={start}&end={end}")
-        data = response.json()
-
+        response = await self.sauce_api_call(
+            f"v1/analytics/trends/builds_tests?start={start}&end={end}"
+        )
+        if isinstance(response, httpx.Response):
+            return AllBuildsAndTests.model_validate(response.json())
         return response
 
-################################## Sauce status
-    async def get_sauce_status(self) -> Union[Dict[str, Any], Dict[str, str]]:
+    ################################## Sauce system metrics
+
+    async def get_sauce_status(self) -> Union[SauceStatus, Dict[str, str]]:
         """
         Returns the current (30 second cache) availability of the Sauce Labs platform. This should tell you whether Sauce is 'up' or 'down'
         """
-        response = await self.sauce_api_call(f"rest/v1/info/status")
+        response = await self.sauce_api_call("rest/v1/info/status")
         if isinstance(response, httpx.Response):
-            return response.json()
-        else:
-            return response
+            return SauceStatus.model_validate(response.json())
+        return response
 
-    async def get_org_concurrency(self, org_id: str) -> Dict[str, Any]:
-        """
-        Return information about concurrency usage for organization:
-        - maximum, minimum concurrency for given granularity (monthly, weekly, daily, hourly),
-        - teams' share for the organization maximum concurrency for given granularity (in percentage),
-        - current limits.
-        :param org_id: Return results only for the specified org_id
-        :return: Json report containing org concurrency usage
-        """
-        if org_id is None:
-            account_info = await self.account_info()
-            org_id = account_info["results"][0]["organization"]["id"]
-
-################################## Storage endpoints
+    ################################## Storage endpoints
 
     async def get_storage_files(self) -> Dict[str, Any]:
         """
         Returns the set of files that have been uploaded to Sauce Storage by the requestor.
         """
-        response = await self.sauce_api_call(f"v1/storage/files")
+        response = await self.sauce_api_call("v1/storage/files")
         data = response.json()
 
         return data
@@ -511,7 +594,7 @@ class SauceLabsAgent:
         """
         Returns an array of groups (apps containing multiple files) currently in storage for the authenticated requestor.
         """
-        response = await self.sauce_api_call(f"v1/storage/groups")
+        response = await self.sauce_api_call("v1/storage/groups")
         data = response.json()
 
         return data
@@ -526,12 +609,14 @@ class SauceLabsAgent:
 
         return data
 
+
 # --- Main Application Setup ---
 if __name__ == "__main__":
     # Create the FastMCP server instance
     mcp_server_instance = FastMCP("SauceLabsAgent")
 
     import os
+
     SAUCE_ACCESS_KEY = os.getenv("SAUCE_ACCESS_KEY")
     if SAUCE_ACCESS_KEY is None:
         raise ValueError("SAUCE_ACCESS_KEY environment variable is not set.")
