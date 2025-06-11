@@ -3,6 +3,7 @@ from typing import Dict, Any, Union  # For type hinting dicts
 import httpx
 import sys
 import logging
+import json
 
 from models import (
     TestLog,
@@ -24,7 +25,6 @@ logging.basicConfig(
     stream=sys.stderr,
     format=">>>>>>>>>>>>%(levelname)s: %(message)s",
 )
-
 
 class SauceLabsAgent:
     def __init__(
@@ -48,7 +48,6 @@ class SauceLabsAgent:
         ## Tools
         ### Accounts
         self.mcp.tool()(self.get_account_info)
-        self.mcp.tool()(self.get_org_concurrency)
         self.mcp.tool()(self.lookup_teams)
         self.mcp.tool()(self.get_team)
         self.mcp.tool()(self.list_team_members)
@@ -63,17 +62,15 @@ class SauceLabsAgent:
         self.mcp.tool()(self.get_job_details)
         self.mcp.tool()(self.get_test_assets)
         self.mcp.tool()(self.get_log_json_file)
+        # self.mcp.tool()(self.get_network_har_file)
+        # self.mcp.tool()(self.get_performance_json_file)
+        # self.mcp.tool()(self.get_selenium_log_file)
 
         ### Builds
         self.mcp.tool()(self.get_build_for_job)
         self.mcp.tool()(self.get_build)
         self.mcp.tool()(self.lookup_builds)
         self.mcp.tool()(self.lookup_jobs_in_build)
-
-        ### Insights
-        self.mcp.tool()(self.get_test_analytics)
-        self.mcp.tool()(self.get_test_trends)
-        self.mcp.tool()(self.get_test_metrics)
 
         ### Platform
         self.mcp.tool()(self.get_sauce_status)
@@ -93,11 +90,10 @@ class SauceLabsAgent:
         self.mcp.tool()(self.get_devices)
         self.mcp.tool()(self.get_specific_device)
         self.mcp.tool()(self.get_devices_status)
-
-        # self.mcp.tool()(self.get_all_builds_and_tests)
-        # self.mcp.tool()(self.get_network_har_file)
-        # self.mcp.tool()(self.get_performance_json_file)
-        # self.mcp.tool()(self.get_selenium_log_file)
+        self.mcp.tool()(self.get_real_device_jobs)
+        self.mcp.tool()(self.get_specific_real_device_job)
+        self.mcp.tool()(self.get_specific_real_device_job_asset)
+        self.mcp.tool()(self.get_private_devices)
 
         logging.info("SauceAPI client initialized and resource manifest loaded.")
 
@@ -137,14 +133,6 @@ class SauceLabsAgent:
         await self.client.aclose()
 
     ################################## Account endpoints
-    # Not exposed to the Agent. We can register if we need to, but it seems better to use the helper method.
-    async def get_asset_url(self, job_id: str, asset_key: str) -> str:
-        asset_list = await self.get_test_assets(job_id)
-        asset_url = getattr(asset_list, asset_key)
-        if isinstance(asset_url, str):
-            return f"rest/v1/{self.username}/jobs/{job_id}/assets/" + asset_url
-        raise ValueError(f"Asset must be string, {asset_key} is type {type(asset_url)}")
-
     # This method populates the Resource at sauce://account
     async def account_info(self) -> Union[AccountInfo, Dict[str, str]]:
         """
@@ -156,6 +144,7 @@ class SauceLabsAgent:
         )
 
         if isinstance(response, httpx.Response):
+            # return response.json()
             return AccountInfo.model_validate(response.json())
         return response
 
@@ -166,7 +155,6 @@ class SauceLabsAgent:
         Useful for a quick overview of account activity.
         """
         account_data = await self.account_info()
-
         return account_data
 
     async def lookup_teams(self, id: str, name: str) -> Dict[str, Any]:
@@ -266,53 +254,15 @@ class SauceLabsAgent:
         )
         return response.json()
 
-    async def get_org_concurrency(
-        self, org_id: str
-    ) -> Union[OrgConcurrency, Dict[str, str]]:
-        """
-        Return information about concurrency usage for organization:
-        - maximum, minimum concurrency for given granularity (monthly, weekly, daily, hourly),
-        - teams' share for the organization maximum concurrency for given granularity (in percentage),
-        - current limits.
-        :param org_id: Return results only for the specified org_id
-        :return: Json report containing org concurrency usage
-        """
-        response = await self.sauce_api_call(
-            f"usage-analytics/v1/concurrency/org?org_id={org_id}"
-        )
-        if isinstance(response, httpx.Response):
-            return OrgConcurrency.model_validate(response.json())
-        return response
-
-    async def get_team_concurrency(
-        self, org_id: str, team_id: str
-    ) -> Union[TeamConcurrency, Dict[str, str]]:
-        """
-        Return information about concurrency usage for teams:
-            - maximum, minimum concurrency for given granularity (monthly, weekly, daily, hourly),
-            - current limits.
-        Concurrency data is broken down by resource types for:
-        - Virtual Cloud:
-            - virtual machines,
-            - mac virtual machines,
-            - mac arm virtual machines,
-            - total virtual machines, combining all resource types.
-        - Real Device Cloud:
-            - private devices,
-            - public devices,
-            - total virtual machines, combining all resource types.
-        :param org_id:
-        :param team_id:
-        :return: Json report containing team concurrency usage
-        """
-        response = await self.sauce_api_call(
-            f"usage-analytics/v1/concurrency/teams?org_id={org_id}&team_id={team_id}"
-        )
-        if isinstance(response, httpx.Response):
-            return TeamConcurrency.model_validate(response.json())
-        return response
-
     ################################## Jobs endpoints
+    # Not exposed to the Agent. We can register if we need to, but it seems better to use the helper method.
+    async def get_asset_url(self, job_id: str, asset_key: str) -> str:
+        asset_list = await self.get_test_assets(job_id)
+        asset_url = getattr(asset_list, asset_key)
+        if isinstance(asset_url, str):
+            return f"rest/v1/{self.username}/jobs/{job_id}/assets/" + asset_url
+        raise ValueError(f"Asset must be string, {asset_key} is type {type(asset_url)}")
+
     # This is exposed to the Agent in case the user wants to see the links that will click through to the Sauce UI
     async def get_test_assets(self, job_id: str) -> Union[TestAssets, Dict[str, str]]:
         """
@@ -402,7 +352,6 @@ class SauceLabsAgent:
         """
         response = await self.sauce_api_call(f"v2/builds/{build_source}/")
         data = response.json()
-
         return data
 
     async def get_build(self, build_source: str, build_id: str) -> Dict[str, Any]:
@@ -415,7 +364,6 @@ class SauceLabsAgent:
         """
         response = await self.sauce_api_call(f"v2/builds/{build_source}/{build_id}/")
         data = response.json()
-
         return data
 
     async def get_build_for_job(self, build_source: str, job_id: str) -> Dict[str, Any]:
@@ -430,7 +378,6 @@ class SauceLabsAgent:
             f"v2/builds/{build_source}/jobs/{job_id}/build/"
         )
         data = response.json()
-
         return data
 
     async def lookup_jobs_in_build(
@@ -447,7 +394,6 @@ class SauceLabsAgent:
             f"v2/builds/{build_source}/{build_id}/jobs/"
         )
         data = response.json()
-
         return data
 
     ################################## Sauce Connect endpoints
@@ -461,7 +407,6 @@ class SauceLabsAgent:
         """
         response = await self.sauce_api_call(f"rest/v1/{username}/tunnels")
         data = response.json()
-
         return data
 
     async def get_tunnel_information(
@@ -475,7 +420,6 @@ class SauceLabsAgent:
         """
         response = await self.sauce_api_call(f"rest/v1/{username}/tunnels/{tunnel_id}")
         data = response.json()
-
         return data
 
     async def get_tunnel_version_downloads(self, client_version: str) -> Dict[str, Any]:
@@ -489,7 +433,6 @@ class SauceLabsAgent:
             f"rest/v1/public/tunnels/info/versions?client_version={client_version}"
         )
         data = response.json()
-
         return data
 
     async def get_current_jobs_for_tunnel(
@@ -501,77 +444,9 @@ class SauceLabsAgent:
         :param username: Required. The authentication username of the owner of the requested tunnel.
         :param tunnel_id: Required. The unique identifier of the requested tunnel.
         """
-        response = await self.sauce_api_call(
-            f"rest/v1/{username}/tunnels/{tunnel_id}/num_jobs"
-        )
+        response = await self.sauce_api_call(f"rest/v1/{username}/tunnels/{tunnel_id}/num_jobs")
         data = response.json()
-
         return data
-
-    ################################## Insights endpoints
-    async def get_test_analytics(
-        self, start: str, end: str
-    ) -> Union[TestAnalytics, Dict[str, str]]:
-        """
-        Return run summary data for all tests that match the request criteria. Good for overall analytics about the requested period, not detailed test results
-        :param start: The starting date of the period during which the test runs executed, in YYYY-MM-DDTHH:mm:ssZ (UTC) format.
-        :param end: The ending date of the period during which the test runs executed, in YYYY-MM-DDTHH:mm:ssZ (UTC) format.
-        """
-        response = await self.sauce_api_call(
-            f"v1/analytics/tests?start={start}&end={end}"
-        )
-        if isinstance(response, httpx.Response):
-            return TestAnalytics.model_validate(response.json())
-        return response
-
-    async def get_test_metrics(
-        self, start: str, end: str
-    ) -> Union[TestMetrics, Dict[str, str]]:
-        """
-        Return an aggregate of metric values for runs of a specified test during the specified period.
-        :param start: The starting date of the period during which the test runs executed, in YYYY-MM-DDTHH:mm:ssZ (UTC) format.
-        :param end: The ending date of the period during which the test runs executed, in YYYY-MM-DDTHH:mm:ssZ (UTC) format.
-        """
-        response = await self.sauce_api_call(
-            f"v1/analytics/insights/test-metrics?start={start}&end={end}"
-        )
-        if isinstance(response, httpx.Response):
-            return TestMetrics.model_validate(response.json())
-        return response
-
-    async def get_test_trends(
-        self, start: str, end: str, interval: str
-    ) -> Union[TestTrends, Dict[str, str]]:
-        """
-        Return a set of data "buckets" representing tests that were run in each time interval defined by the request parameters.
-        This shows test trends over the specified time period, and can help understand an organization/team/user's overall test
-        execution efficiency.
-        :param start: Required. The starting date of the period during which the test runs executed, in YYYY-MM-DDTHH:mm:ssZ (UTC) format. Default should be '7 days ago'
-        :param end: Required. The ending date of the period during which the test runs executed, in YYYY-MM-DDTHH:mm:ssZ (UTC) format. Default should be 'today'
-        :param time_range: Required. The amount of time backward from the current time that represents the period during which the test runs are executed. Acceptable units include d (day); h (hour); m (minute); s (second).
-        :param interval: Required. Relative date filter. Available values are: 1m, 15m, 1h, 6h, 12h, 1d, 7d, 30d. Defaul is 1d
-        """
-        response = await self.sauce_api_call(
-            f"v1/analytics/trends/tests?start={start}&end={end}&interval={interval}"
-        )
-        if isinstance(response, httpx.Response):
-            return TestTrends.model_validate(response.json())
-        return response
-
-    async def get_all_builds_and_tests(
-        self, start: str, end: str
-    ) -> Union[AllBuildsAndTests, Dict[str, str]]:
-        """
-        Return the set of all tests run in the specified period, grouped by whether each test was part of a build or not.
-        :param start: The starting date of the period during which the test runs executed, in YYYY-MM-DDTHH:mm:ssZ (UTC) format.
-        :param end: The ending date of the period during which the test runs executed, in YYYY-MM-DDTHH:mm:ssZ (UTC) format.
-        """
-        response = await self.sauce_api_call(
-            f"v1/analytics/trends/builds_tests?start={start}&end={end}"
-        )
-        if isinstance(response, httpx.Response):
-            return AllBuildsAndTests.model_validate(response.json())
-        return response
 
     ################################## Sauce system metrics
     async def get_sauce_status(self) -> Union[SauceStatus, Dict[str, str]]:
@@ -582,6 +457,101 @@ class SauceLabsAgent:
         if isinstance(response, httpx.Response):
             return SauceStatus.model_validate(response.json())
         return response
+
+    ################################## Real Device endpoints
+    async def get_devices(self) -> Dict[str, Any]:
+        """
+        Get the set of real devices located at the data center, as well as the operating system/browser
+        combinations and identifying information for each device.
+        """
+        response = await self.sauce_api_call(f"v1/rdc/devices")
+        data = response.json()
+        return data
+
+    async def get_specific_device(self, device_id:str) -> Dict[str, Any]:
+        """
+        Get information about the device specified in the request.
+        :param device_id: The unique identifier of a device in the Sauce Labs data center. You can look up device
+            IDs using the get_devices Tool.
+        """
+        response = await self.sauce_api_call(f"v1/rdc/devices/{device_id}")
+        data = response.json()
+        return data
+
+    async def get_devices_status(self, device_id: str) -> Dict[str, Any]:
+        """
+        Returns a list of devices in the data center along with their current states. Each device is represented by a
+        descriptor, indicating its model, and includes information on availability, usage status, and whether it is
+        designated as a private device. Note that the inUseBy field is exposed only for private devices
+        isPrivateDevice: true. Users can view information about who is currently using the device only if they have
+        the required permissions. Lack of permissions will result in the inUseBy field being omitted from the response
+        for private devices.
+        Available States:
+            AVAILABLE	Device is available and ready to be allocated
+            IN_USE	    Device is currently in use
+            CLEANING	Device is being cleaned (only available for private devices)
+            MAINTENANCE	Device is in maintenance (only available for private devices)
+            REBOOTING	Device is rebooting (only available for private devices)
+            OFFLINE	    Device is offline (only available for private devices)
+        """
+        response = await self.sauce_api_call(f"v1/rdc/devices/status")
+        data = response.json()
+        return data
+
+    ################################## Real Device Jobs endpoints
+    async def get_real_device_jobs(self, limit: int = 5, offset: int = 1, type: str = None) -> Dict[str, Any]:
+        """
+        Get a list of jobs that are actively running on real devices in the data center.
+        :param limit: The maximum number of jobs to return.
+        :param offset: Limit results to those following this index number. Defaults to 1.
+        :param type: Filter results to show manual tests only with LIVE.
+        """
+        response = await self.sauce_api_call(f"v1/rdc/jobs?limit={limit}&offset={offset}")
+        data = response.json()
+        return data
+
+    async def get_specific_real_device_job(self, job_id: str) -> Dict[str, Any]:
+        """
+        Get information about a specific job running on a real device at the data center.
+        :param job_id: Required. The unique identifier of a job running on a real device in the data center. You can
+            look up job IDs using the Get Real Device Jobs endpoint.
+        """
+        response = await self.sauce_api_call(f"v1/rdc/jobs/{job_id}")
+        data = response.json()
+        return data
+
+    async def get_specific_real_device_job_asset(self, job_id: str, asset_type: str) -> Dict[str, Any]:
+        """
+        Download a specific asset for a job after it has completed running on a real device at the data center. The
+        available assets for a specific job depend on the test framework and whether the corresponding feature was
+        enabled during the test.
+        :param job_id: Required. The unique identifier of a job running on a real device in the data center. You can look up job
+            IDs using the Get Real Device Jobs endpoint.
+        :param asset_type: Required. The unique identifier of a job running on a real device in the data center. You can look up job
+            IDs using the Get Real Device Jobs endpoint. Possible values are:
+
+            'deviceLogs' - Device Logs | Appium, Espresso, XCUITest
+            'appiumLogs' - Appium Logs | Appium
+            'appiumRequests' - Appium Requests | Appium
+            'junit.xml' - JUnit XML | Espresso, XCUITest
+            'xcuitestLogs' - XCUITest Logs | XCUITest
+            'video.mp4' - Video | Appium, Espresso, XCUITest
+            'screenshots.zip' - Screenshots | Appium, Espresso
+            'network.har' - Network Logs | Appium, Espresso, XCUITest
+            'insights.json' - Device Vitals | Appium, Espresso, XCUITest
+            'crash.json' - Crash Logs | Appium
+        """
+        response = await self.sauce_api_call(f"v1/rdc/jobs/{job_id}/{asset_type}")
+        data = response.json()
+        return data
+
+    async def get_private_devices(self) -> Dict[str, Any]:
+        """
+        Get a list of private devices with their device information and settings.
+        """
+        response = await self.sauce_api_call(f"v1/rdc/device-management/devices")
+        data = response.json()
+        return data
 
     async def get_org_concurrency(self, org_id: str) -> Dict[str, Any]:
         """
@@ -696,9 +666,7 @@ class SauceLabsAgent:
         """
         response = await self.sauce_api_call(f"v1/storage/groups/{group_id}/settings")
         data = response.json()
-
         return data
-
 
 # --- Main Application Setup ---
 if __name__ == "__main__":
