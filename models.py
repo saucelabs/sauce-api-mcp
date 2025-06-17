@@ -4,21 +4,48 @@ from pydantic import BaseModel, Field, RootModel
 
 # --- Account Models ---
 
+class Organization(BaseModel):
+    id: str
+    name: str
+
+class TeamSetting(BaseModel):
+    live_only: bool
+    real_devices: int
+    virtual_machines: int
+
+class Group(BaseModel):
+    id: str
+    name: str
+
+class Team(BaseModel):
+    id: str
+    settings: TeamSetting
+    group: Group
+    is_default: bool
+    name: str
+    org_uuid: str
+
+class Role(BaseModel):
+    name: str
+    role: int
 
 class ResultItem(BaseModel):
     """
     Represents a single result item within the account information.
     """
-
     id: str
-    name: str
+    email: str
+    username: str
+    first_name: str
+    last_name: str
+    is_active: bool
     # Assuming the settings object can contain various basic value types.
-    settings: Dict[str, Union[str, int, bool, None]]
+    organization: Organization
     # Assuming the group object can also contain various basic value types.
-    group: Dict[str, Union[str, int, bool, None]]
-    is_default: bool
-    org_uuid: str
-    user_count: int
+    roles: List[Role]
+    teams: List[Team]
+
+
 
 
 class AccountInfo(BaseModel):
@@ -27,7 +54,7 @@ class AccountInfo(BaseModel):
     """
 
     # Assuming links is a dictionary of string keys and URL string values.
-    links: Dict[str, str]
+    links: Dict[str, Optional[str]]
     count: int
     results: List[ResultItem]
 

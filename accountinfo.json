@@ -1,0 +1,46 @@
+{
+  "links": {
+    "next": null,
+    "previous": null,
+    "first": "https://api.us-west-1.saucelabs.com/team-management/v1/users?limit=20&offset=0&username=marcus.merrell",
+    "last": "https://api.us-west-1.saucelabs.com/team-management/v1/users?limit=20&offset=0&username=marcus.merrell"
+  },
+  "count": 1,
+  "results": [
+    {
+      "id": "a2d6fcfddcbf44028e30bae52a622822",
+      "email": "marcus.merrell@saucelabs.com",
+      "first_name": "Marcus",
+      "last_name": "Merrell",
+      "is_active": true,
+      "organization": {
+        "id": "87aaa9588ab4414195200a6e50b41331",
+        "name": "Sauce Labs, inc"
+      },
+      "roles": [
+        {
+          "name": "organization admin",
+          "role": 1
+        }
+      ],
+      "teams": [
+        {
+          "id": "26b2026a282c45d3844d322c02a124b9",
+          "settings": {
+            "live_only": false,
+            "real_devices": 8,
+            "virtual_machines": 100
+          },
+          "group": {
+            "id": "08458f0ec2314127afa30a655540b655",
+            "name": "Default line of business"
+          },
+          "is_default": true,
+          "name": "A Team",
+          "org_uuid": "87aaa9588ab4414195200a6e50b41331"
+        }
+      ],
+      "username": "marcus.merrell"
+    }
+  ]
+}
