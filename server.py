@@ -190,7 +190,17 @@ class SauceLabsAgent:
         response = await self.sauce_api_call(f"team-management/v1/teams/{id}/members/")
         return response.json()
 
-    async def lookup_users(self, id: str) -> Dict[str, Any]:
+    async def lookup_users(
+        self,
+        id: Optional[str] = None,
+        username: Optional[str] = None,
+        teams: Optional[str] = None,
+        roles: Optional[str] = None,
+        phrase: Optional[str] = None,
+        status: Optional[str] = None,
+        limit: Optional[int] = None,
+        offset: Optional[int] = None,
+    ) -> Dict[str, Any]:
         """
         Queries the organization of the requesting account and returns the number of users matching the query and a basic
         profile of each user, including the ID value, which may be a required parameter of other API calls related to a
@@ -209,7 +219,27 @@ class SauceLabsAgent:
         :param limit: Optional. Limit results to a maximum number per page. Default value is 20.
         :param offset: Optional. The starting record number from which to return results.
         """
-        response = await self.sauce_api_call("team-management/v1/users/")
+        params = {}
+        if id:
+            params["id"] = id
+        if username:
+            params["username"] = username
+        if teams:
+            params["teams"] = teams
+        if roles:
+            params["roles"] = roles
+        if phrase:
+            params["phrase"] = phrase
+        if status:
+            params["status"] = status
+        if limit:
+            params["limit"] = limit
+        if offset:
+            params["offset"] = offset
+
+        query_string = "&”.join([f'{key}={value}' for key, value in params.items()])
+
+        response = await self.sauce_api_call(f"team-management/v1/users/?{query_string}")
         return response.json()
 
     async def get_user(self, id: str) -> Dict[str, Any]:
