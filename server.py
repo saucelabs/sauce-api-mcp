@@ -200,7 +200,7 @@ class SauceLabsAgent:
         status: Optional[str] = None,
         limit: Optional[int] = None,
         offset: Optional[int] = None,
-    ) -> Dict[str, Any]:
+    ) -> LookupUsers:
         """
         Queries the organization of the requesting account and returns the number of users matching the query and a basic
         profile of each user, including the ID value, which may be a required parameter of other API calls related to a
@@ -237,10 +237,10 @@ class SauceLabsAgent:
         if offset:
             params["offset"] = offset
 
-        query_string = "&”.join([f'{key}={value}' for key, value in params.items()])
+        query_string = "&".join([f'{key}={value}' for key, value in params.items()])
 
         response = await self.sauce_api_call(f"team-management/v1/users/?{query_string}")
-        return response.json()
+        return LookupUsers.model_validate(response.json())
 
     async def get_user(self, id: str) -> Dict[str, Any]:
         """
