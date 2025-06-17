@@ -45,9 +45,6 @@ class ResultItem(BaseModel):
     roles: List[Role]
     teams: List[Team]
 
-
-
-
 class AccountInfo(BaseModel):
     """
     The main model for the account information response.
@@ -55,6 +52,17 @@ class AccountInfo(BaseModel):
 
     # Assuming links is a dictionary of string keys and URL string values.
     links: Dict[str, Optional[str]]
+    count: int
+    results: List[ResultItem]
+
+class LookupUsersLinks(BaseModel):
+    next: Optional[str]
+    previous: Optional[str]
+    first: Optional[str]
+    last: Optional[str]
+
+class LookupUsers(BaseModel):
+    links: LookupUsersLinks
     count: int
     results: List[ResultItem]
 
