@@ -31,6 +31,7 @@ from models import (
     Group,
     Team,
     LookupTeamsResponse,
+    ErrorResponse
 )
 
 logging.basicConfig(
@@ -170,7 +171,7 @@ class SauceLabsAgent:
         account_data = await self.account_info()
         return account_data
 
-    async def lookup_teams(self, id: str, name: str) -> Union[LookupTeamsResponse, Dict[str, Any]]:
+    async def lookup_teams(self, id: str, name: str) -> Union[LookupTeamsResponse, ErrorResponse]:
         """
         Queries the organization of the requesting account and returns the number of teams matching the query and a
         summary of each team, including the ID value, which may be a required parameter of other API calls related
@@ -186,7 +187,7 @@ class SauceLabsAgent:
         )
         if isinstance(response, httpx.Response):
             return LookupTeamsResponse.model_validate(response.json())
-        return response
+        return ErrorResponse(error=response['error'])
 
     async def get_team(self, id: str) -> Dict[str, Any]:
         """
