@@ -536,6 +536,9 @@ class AllBuildsAndTests(BaseModel):
     builds: Builds
     tests_missing_build: TestsMissingBuild
 
+class ErrorResponse(BaseModel):
+    error: str
+
 class TeamSetting(BaseModel):
     live_only: bool
     real_devices: int
