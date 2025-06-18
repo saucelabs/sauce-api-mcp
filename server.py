@@ -8,28 +8,12 @@ import json
 from models import (
     TestLog,
     TestAssets,
-    TeamConcurrency,
-    OrgConcurrency,
     JobDetails,
-    RecentJobs,
-    TestAnalytics,
-    TestMetrics,
-    TestTrends,
     AccountInfo,
-    AllBuildsAndTests,
     SauceStatus,
-    LookupUsersLinks,
     LookupUsers,
-    ServiceAccount,
-    ServiceAccountTeam,
-    ServiceAccountCreator,
     LookupServiceAccounts,
-    JobState,
-    Job,
     LookupJobsInBuildResponse,
-    TeamSetting,
-    Group,
-    Team,
     LookupTeamsResponse,
     ErrorResponse
 )
@@ -76,9 +60,6 @@ class SauceLabsAgent:
         self.mcp.tool()(self.get_job_details)
         self.mcp.tool()(self.get_test_assets)
         self.mcp.tool()(self.get_log_json_file)
-        # self.mcp.tool()(self.get_network_har_file)
-        # self.mcp.tool()(self.get_performance_json_file)
-        # self.mcp.tool()(self.get_selenium_log_file)
 
         ### Builds
         self.mcp.tool()(self.get_build_for_job)
@@ -171,7 +152,11 @@ class SauceLabsAgent:
         account_data = await self.account_info()
         return account_data
 
-    async def lookup_teams(self, id: str, name: str) -> Union[LookupTeamsResponse, ErrorResponse]:
+    async def lookup_teams(
+            self,
+            id: Optional[str] = None,
+            name: Optional[str] = None,
+    ) -> Union[LookupTeamsResponse, ErrorResponse]:
         """
         Queries the organization of the requesting account and returns the number of teams matching the query and a
         summary of each team, including the ID value, which may be a required parameter of other API calls related
@@ -182,8 +167,16 @@ class SauceLabsAgent:
         :param name: Optional. Returns the set of teams that begin with the specified name value. For example, name=sauce would
             return all teams in the organization with names beginning with "sauce".
         """
+        params = {}
+        if id:
+            params["id"] = id
+        if name:
+            params["name"] = name
+
+        query_string = "&".join([f'{key}={value}' for key, value in params.items()])
+
         response = await self.sauce_api_call(
-            f"team-management/v1/teams?id={id}&name={name}"
+            f"team-management/v1/teams?{query_string}"
         )
         if isinstance(response, httpx.Response):
             return LookupTeamsResponse.model_validate(response.json())
@@ -393,7 +386,7 @@ class SauceLabsAgent:
 
     async def get_recent_jobs(
         self, limit: int = 5
-    ) -> Union[RecentJobs, Dict[str, str]]:
+    ) -> Dict[str, str]:
         """
         Retrieves a list of the most recent jobs run on Sauce Labs for the current user.
         Allows specifying the number of jobs to retrieve, up to a maximum.
@@ -404,7 +397,7 @@ class SauceLabsAgent:
             f"rest/v1/{self.username}/jobs?limit={limit}"
         )
         if isinstance(response, httpx.Response):
-            return RecentJobs.model_validate(response.json())
+            return response.json()
         return response
 
     ################################## Builds endpoints
@@ -733,95 +726,6 @@ class SauceLabsAgent:
         Get a list of private devices with their device information and settings.
         """
         response = await self.sauce_api_call(f"v1/rdc/device-management/devices")
-        data = response.json()
-        return data
-
-    async def get_org_concurrency(self, org_id: str) -> Dict[str, Any]:
-        """
-        Return information about concurrency usage for organization:
-        - maximum, minimum concurrency for given granularity (monthly, weekly, daily, hourly),
-        - teams' share for the organization maximum concurrency for given granularity (in percentage),
-        - current limits.
-        :param org_id: Return results only for the specified org_id
-        :return: Json report containing org concurrency usage
-        """
-        if org_id is None:
-            account_info = await self.account_info()
-            org_id = account_info["results"][0]["organization"]["id"]
-
-    ################################## Real Device endpoints
-    async def get_devices(self) -> Dict[str, Any]:
-        """
-        Get the set of real devices located at the data center, as well as the operating system/browser
-        combinations and identifying information for each device.
-        """
-        response = await self.sauce_api_call(f"v1/rdc/devices")
-        data = response.json()
-        return data
-
-    async def get_specific_device(self, device_id:str) -> Dict[str, Any]:
-        """
-        Get information about the device specified in the request.
-        :param device_id: The unique identifier of a device in the Sauce Labs data center. You can look up device
-            IDs using the get_devices Tool.
-        """
-        response = await self.sauce_api_call(f"v1/rdc/devices/{device_id}")
-        data = response.json()
-        return data
-
-    async def get_devices_status(self, device_id: str) -> Dict[str, Any]:
-        """
-        Returns a list of devices in the data center along with their current states. Each device is represented by a
-        descriptor, indicating its model, and includes information on availability, usage status, and whether it is
-        designated as a private device. Note that the inUseBy field is exposed only for private devices
-        isPrivateDevice: true. Users can view information about who is currently using the device only if they have
-        the required permissions. Lack of permissions will result in the inUseBy field being omitted from the response
-        for private devices.
-        Available States:
-            AVAILABLE	Device is available and ready to be allocated
-            IN_USE	    Device is currently in use
-            CLEANING	Device is being cleaned (only available for private devices)
-            MAINTENANCE	Device is in maintenance (only available for private devices)
-            REBOOTING	Device is rebooting (only available for private devices)
-            OFFLINE	    Device is offline (only available for private devices)
-        """
-        response = await self.sauce_api_call(f"v1/rdc/devices/status")
-        data = response.json()
-        return data
-
-    ################################## Real Device Jobs endpoints
-    async def get_real_device_jobs(self, limit: int = 5, offset: int = 1, type: str = None) -> Dict[str, Any]:
-        """
-        Get a list of jobs that are actively running on real devices in the data center.
-        :param limit: The maximum number of jobs to return.
-        :param offset: Limit results to those following this index number. Defaults to 1.
-        :param type: Filter results to show manual tests only with LIVE.
-        """
-        response = await self.sauce_api_call(f"v1/rdc/jobs?limit={limit}&offset={offset}")
-        data = response.json()
-        return data
-
-    async def get_specific_real_device(self, job_id: str) -> Dict[str, Any]:
-        """
-        Get information about a specific job running on a real device at the data center.
-        :param job_id: Required. The unique identifier of a job running on a real device in the data center. You can look up job
-            IDs using the Get Real Device Jobs endpoint.
-        """
-        response = await self.sauce_api_call(f"v1/rdc/jobs/{job_id}")
-        data = response.json()
-        return data
-
-    async def get_specific_real_device_job_asset(self, job_id: str) -> Dict[str, Any]:
-        """
-        Download a specific asset for a job after it has completed running on a real device at the data center. The
-        available assets for a specific job depend on the test framework and whether the corresponding feature was
-        enabled during the test.
-        :param job_id: Required. The unique identifier of a job running on a real device in the data center. You can look up job
-            IDs using the Get Real Device Jobs endpoint.
-        :param asset_type: Required. The unique identifier of a job running on a real device in the data center. You can look up job
-            IDs using the Get Real Device Jobs endpoint.
-        """
-        response = await self.sauce_api_call(f"v1/rdc/jobs/{job_id}")
         data = response.json()
         return data
 
