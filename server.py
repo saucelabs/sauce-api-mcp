@@ -24,6 +24,9 @@ from models import (
     ServiceAccountTeam,
     ServiceAccountCreator,
     LookupServiceAccounts,
+    JobState,
+    Job,
+    LookupJobsInBuildResponse,
 )
 
 logging.basicConfig(
@@ -488,20 +491,85 @@ class SauceLabsAgent:
         return data
 
     async def lookup_jobs_in_build(
-        self, build_source: str, build_id: str
-    ) -> Dict[str, Any]:
+        self,
+        build_source: str,
+        build_id: str,
+        modified_since: Optional[str] = None,
+        completed: Optional[bool] = None,
+        errored: Optional[bool] = None,
+        failed: Optional[bool] = None,
+        finished: Optional[bool] = None,
+        new: Optional[bool] = None,
+        passed: Optional[bool] = None,
+        public: Optional[bool] = None,
+        queued: Optional[bool] = None,
+        running: Optional[bool] = None,
+        faulty: Optional[bool] = None,
+    ) -> Union[LookupJobsInBuildResponse, Dict[str, Any]]:
         """
-        Retrieve the details related to a specific build by passing its unique ID in the request.
-        :param build_source: Required. The type of device for which you are getting builds. Valid values are: 'rdc'
-            (Real Device Builds), 'vdc' (Emulator or Simulator Builds)
+        Returns information about all jobs associated with the specified build. You can limit which jobs are
+        returned using any of the optional filtering parameters.
+        :param build_source: Required. The type of test device associated with the build and its jobs. Valid values are:
+            rdc - Real Device Builds, vdc - Emulator or Simulator Builds
         :param build_id: Required. The unique identifier of the build whose jobs you are looking up. You can look up
             build IDs in your organization using the Lookup Builds endpoint.
+        :param modified_since: Optional. Returns only jobs that have been modified after this unicode timestamp.
+        :param completed: Optional. Returns jobs based on whether they completed, meaning the tests ran uninterrupted to
+            completion: true - Return jobs that have a completed state of true, false - Return jobs that have a
+            completed state of false.
+        :param errored: Optional. Returns jobs based on their errored state: true - Return jobs that have an errored
+            state of true, false - Return jobs that have an errored state of false.
+        :param failed: Optional. Returns jobs based on their failed state: true - Return jobs that have a failed state
+            of true, false - Return jobs that have a failed state of false.
+        :param finished: Optional. Returns jobs based on whether they have finished, meaning they are no longer
+            running, but may not have run to completion: true - Return jobs that have a finished state of true, false -
+            Return jobs that have a finished state of false.
+        :param new: Optional. Returns jobs based on their new state: true - Return jobs that have a new state of true,
+            false - Return jobs that have a new state of false.
+        :param passed: Optional. Returns jobs based on their passed state: true - Return jobs that have a passed state
+            of true, false - Return jobs that have a passed state of false.
+        :param public: Optional. Returns jobs based on whether they were run on public devices: true - Return jobs that
+            have a public state of true, false - Return jobs that have a public state of false.
+        :param queued: Optional. Returns jobs based on whether their current state is queued: true - Return jobs that
+            have a queued state of true, false - Return jobs that have a queued state of false.
+        :param running: Optional. Returns jobs based on whether they are currently in a running state: true - Return
+            jobs that are currently running, false - Return jobs that are not currently running.
+        :param faulty: Optional. Returns jobs based on whether they are identified as faulty, meaning either errored or
+            failed state is true. true - Return jobs that have a faulty state of true, false - Return jobs that have a
+            faulty state of false.
         """
+        params = {}
+        if modified_since:
+            params["modified_since"] = modified_since
+        if completed is not None:
+            params["completed"] = completed
+        if errored is not None:
+            params["errored"] = errored
+        if failed is not None:
+            params["failed"] = failed
+        if finished is not None:
+            params["finished"] = finished
+        if new is not None:
+            params["new"] = new
+        if passed is not None:
+            params["passed"] = passed
+        if public is not None:
+            params["public"] = public
+        if queued is not None:
+            params["queued"] = queued
+        if running is not None:
+            params["running"] = running
+        if faulty is not None:
+            params["faulty"] = faulty
+
+        query_string = "&".join([f'{key}={value}' for key, value in params.items()])
+
         response = await self.sauce_api_call(
-            f"v2/builds/{build_source}/{build_id}/jobs/"
+            f"v2/builds/{build_source}/{build_id}/jobs/?{query_string}"
         )
-        data = response.json()
-        return data
+        if isinstance(response, httpx.Response):
+            return LookupJobsInBuildResponse.model_validate(response.json())
+        return response
 
     ################################## Sauce Connect endpoints
 
