@@ -536,6 +536,29 @@ class AllBuildsAndTests(BaseModel):
     builds: Builds
     tests_missing_build: TestsMissingBuild
 
+class JobState(BaseModel):
+    completed: bool
+    errored: bool
+    failed: bool
+    finished: bool
+    new: bool
+    passed: bool
+    public: bool
+    queued: bool
+    running: bool
+
+
+class Job(BaseModel):
+    creation_time: datetime
+    deletion_time: Optional[datetime]
+    id: str
+    modification_time: datetime
+    state: JobState
+
+
+class LookupJobsInBuildResponse(BaseModel):
+    jobs: List[Job]
+
 
 # --- Usage Analytics Models ---
 
