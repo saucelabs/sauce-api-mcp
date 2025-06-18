@@ -66,10 +66,29 @@ class LookupUsers(BaseModel):
     count: int
     results: List[ResultItem]
 
+class ServiceAccountTeam(BaseModel):
+    id: str
+    name: str
+
+class ServiceAccountCreator(BaseModel):
+    id: str
+    username: str
+    email: str
+
+class ServiceAccount(BaseModel):
+    id: str
+    username: str
+    name: str
+    team: ServiceAccountTeam
+    creator: ServiceAccountCreator
+
+class LookupServiceAccounts(BaseModel):
+    links: LookupUsersLinks
+    count: int
+    results: List[ServiceAccount]
+
 
 #  --- Jobs Models ---
-
-
 class TestAssets(BaseModel):
     """
     A Pydantic model to represent the asset files for a test.
