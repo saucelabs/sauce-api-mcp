@@ -483,7 +483,7 @@ class SauceLabsAgent:
         data = response.json()
         return data
 
-    async def get_build_for_job(self, build_source: str, job_id: str) -> Dict[str, Any]:
+    async def get_build_for_job(self, build_source: str, job_id: str) -> Union[Dict[str, Any], ErrorResponse]:
         """
         Retrieve the details related to a specific build by passing its unique ID in the request.
         :param build_source: Required. The type of device for which you are getting builds. Valid values are: 'rdc'
@@ -494,8 +494,9 @@ class SauceLabsAgent:
         response = await self.sauce_api_call(
             f"v2/builds/{build_source}/jobs/{job_id}/build/"
         )
-        data = response.json()
-        return data
+        if isinstance(response, httpx.Response):
+            return response.json()
+        return ErrorResponse(error=response['error'])
 
     async def lookup_jobs_in_build(
         self,
