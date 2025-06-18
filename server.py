@@ -1,5 +1,5 @@
 from mcp.server import FastMCP
-from typing import Dict, Any, Union, Optional  # For type hinting dicts
+from typing import Dict, Any, Union, Optional, List  # For type hinting dicts
 import httpx
 import sys
 import logging
@@ -399,17 +399,67 @@ class SauceLabsAgent:
 
     ################################## Builds endpoints
 
-    async def lookup_builds(self, build_source: str) -> Dict[str, Any]:
+    async def lookup_builds(
+        self,
+        build_source: str,
+        user_id: Optional[str] = None,
+        org_id: Optional[str] = None,
+        group_id: Optional[str] = None,
+        team_id: Optional[str] = None,
+        status: Optional[List[str]] = None,
+        start: Optional[str] = None,
+        end: Optional[str] = None,
+        limit: Optional[int] = None,
+        name: Optional[str] = None,
+        offset: Optional[int] = None,
+        sort: Optional[str] = None,
+    ) -> Dict[str, Any]:
         """
         Queries the requesting account and returns a summary of each build matching the query, including the ID value,
-        which may be a required parameter of other API calls related to a specific build.You can narrow the results of
+        which may be a required parameter of other API calls related to a specific build. You can narrow the results of
         your query using any of the optional filtering parameters.
-        :param build_source: The type of device for which you are getting builds. Valid values are: 'rdc' - Real Device
-            Builds, 'vdc' - Emulator or Simulator Builds
+        :param build_source: The type of device for which you are getting builds. Valid values are: \'rdc\' - Real Device
+            Builds, \'vdc\' - Emulator or Simulator Builds
+        :param user_id: Optional. Returns any builds owned by the specified user that the authenticated user is authorized to view. You can look up the IDs of users in your organization using the Lookup Users endpoint.
+        :param org_id: Optional. Returns all builds in the specified organization that the authenticated user is authorized to view.
+        :param group_id: Optional. Returns all builds associated with the specified group that the authenticated user is authorized to view.
+        :param team_id: Optional. Returns all builds for the specified team that the authenticated user is authorized to view.
+        :param status: Optional. Returns only builds where the status matches the list of values specified. Valid values are: running - Any job in the build has a state of running, new, or queued. error - The build is not running and at least one job in the build has a state of errored. failed - The build is not running or error and at least one job in the build has a state of failed. complete - The build is not running, error, or failed, but the number of jobs with a state of finished does not equal the number of jobs marked passed, so at least one job has a state other than passed. success -- All jobs in the build have a state of passed.
+        :param start: Optional. Returns only builds where the earliest job ran on or after this Unix timestamp.
+        :param end: Optional. Returns only builds where the latest job ran on or before this Unix timestamp.
+        :param limit: Optional. The maximum number of builds to return in the response.
+        :param name: Optional. Returns builds with a matching build name.
+        :param offset: Optional. Begins the set of results at this index number.
+        :param sort: Optional. Sorts the results in alphabetically ascending or descending order. Valid values are: asc - Ascending desc - Descending
         """
-        response = await self.sauce_api_call(f"v2/builds/{build_source}/")
-        data = response.json()
-        return data
+        params = {}
+        if user_id:
+            params["user_id"] = user_id
+        if org_id:
+            params["org_id"] = org_id
+        if group_id:
+            params["group_id"] = group_id
+        if team_id:
+            params["team_id"] = team_id
+        if status:
+            params["status"] = status
+        if start:
+            params["start"] = start
+        if end:
+            params["end"] = end
+        if limit:
+            params["limit"] = limit
+        if name:
+            params["name"] = name
+        if offset:
+            params["offset"] = offset
+        if sort:
+            params["sort"] = sort
+
+        query_string = "&".join([f'{key}={value}' for key, value in params.items()])
+
+        response = await self.sauce_api_call(f"v2/builds/{build_source}/?{query_string}")
+        return response.json()
 
     async def get_build(self, build_source: str, build_id: str) -> Dict[str, Any]:
         """
