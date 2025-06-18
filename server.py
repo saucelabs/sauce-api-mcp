@@ -270,7 +270,7 @@ class SauceLabsAgent:
         teams: Optional[str] = None,
         limit: Optional[int] = None,
         offset: Optional[int] = None,
-    ) -> LookupServiceAccounts:
+    ) -> Union[LookupServiceAccounts, Dict[str, Any]]:
         """
         Lists existing service accounts in your organization. You can filter the results using the query parameters below.
         :param id: Optional. Comma-separated service account IDs.
@@ -297,7 +297,9 @@ class SauceLabsAgent:
         query_string = "&".join([f'{key}={value}' for key, value in params.items()])
 
         response = await self.sauce_api_call(f"team-management/v1/service-accounts/?{query_string}")
-        return LookupServiceAccounts.model_validate(response.json())
+        if isinstance(response, httpx.Response):
+            return LookupServiceAccounts.model_validate(response.json())
+        return response
 
     async def get_service_account(self, id: str) -> Dict[str, Any]:
         """
