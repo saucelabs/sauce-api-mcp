@@ -45,9 +45,6 @@ class ResultItem(BaseModel):
     roles: List[Role]
     teams: List[Team]
 
-
-
-
 class AccountInfo(BaseModel):
     """
     The main model for the account information response.
@@ -58,10 +55,40 @@ class AccountInfo(BaseModel):
     count: int
     results: List[ResultItem]
 
+class LookupUsersLinks(BaseModel):
+    next: Optional[str]
+    previous: Optional[str]
+    first: Optional[str]
+    last: Optional[str]
+
+class LookupUsers(BaseModel):
+    links: LookupUsersLinks
+    count: int
+    results: List[ResultItem]
+
+class ServiceAccountTeam(BaseModel):
+    id: str
+    name: str
+
+class ServiceAccountCreator(BaseModel):
+    id: str
+    username: str
+    email: str
+
+class ServiceAccount(BaseModel):
+    id: str
+    username: str
+    name: str
+    team: ServiceAccountTeam
+    creator: ServiceAccountCreator
+
+class LookupServiceAccounts(BaseModel):
+    links: LookupUsersLinks
+    count: int
+    results: List[ServiceAccount]
+
 
 #  --- Jobs Models ---
-
-
 class TestAssets(BaseModel):
     """
     A Pydantic model to represent the asset files for a test.
@@ -508,6 +535,55 @@ class AllBuildsAndTests(BaseModel):
     meta: Meta
     builds: Builds
     tests_missing_build: TestsMissingBuild
+
+class ErrorResponse(BaseModel):
+    error: str
+
+class TeamSetting(BaseModel):
+    live_only: bool
+    real_devices: int
+    virtual_machines: int
+
+class Group(BaseModel):
+    id: str
+    name: str
+
+class Team(BaseModel):
+    id: str
+    settings: TeamSetting
+    group: Group
+    is_default: bool
+    name: str
+    org_uuid: str
+    user_count: Optional[int] = None # added to handle this case
+
+class LookupTeamsResponse(BaseModel):
+    links: LookupUsersLinks
+    count: int
+    results: List[Team]
+
+class JobState(BaseModel):
+    completed: bool
+    errored: bool
+    failed: bool
+    finished: bool
+    new: bool
+    passed: bool
+    public: bool
+    queued: bool
+    running: bool
+
+
+class Job(BaseModel):
+    creation_time: datetime
+    deletion_time: Optional[datetime]
+    id: str
+    modification_time: datetime
+    state: JobState
+
+
+class LookupJobsInBuildResponse(BaseModel):
+    jobs: List[Job]
 
 
 # --- Usage Analytics Models ---

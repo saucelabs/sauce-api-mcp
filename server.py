@@ -1,23 +1,19 @@
 from mcp.server import FastMCP
-from typing import Dict, Any, Union  # For type hinting dicts
+from typing import Dict, Any, Union, Optional, List  # For type hinting dicts
 import httpx
 import sys
 import logging
 import json
 
 from models import (
-    TestLog,
-    TestAssets,
-    TeamConcurrency,
-    OrgConcurrency,
     JobDetails,
-    RecentJobs,
-    TestAnalytics,
-    TestMetrics,
-    TestTrends,
     AccountInfo,
-    AllBuildsAndTests,
     SauceStatus,
+    LookupUsers,
+    LookupServiceAccounts,
+    LookupJobsInBuildResponse,
+    LookupTeamsResponse,
+    ErrorResponse
 )
 
 logging.basicConfig(
@@ -62,9 +58,6 @@ class SauceLabsAgent:
         self.mcp.tool()(self.get_job_details)
         self.mcp.tool()(self.get_test_assets)
         self.mcp.tool()(self.get_log_json_file)
-        # self.mcp.tool()(self.get_network_har_file)
-        # self.mcp.tool()(self.get_performance_json_file)
-        # self.mcp.tool()(self.get_selenium_log_file)
 
         ### Builds
         self.mcp.tool()(self.get_build_for_job)
@@ -157,7 +150,11 @@ class SauceLabsAgent:
         account_data = await self.account_info()
         return account_data
 
-    async def lookup_teams(self, id: str, name: str) -> Dict[str, Any]:
+    async def lookup_teams(
+            self,
+            id: Optional[str] = None,
+            name: Optional[str] = None,
+    ) -> Union[LookupTeamsResponse, ErrorResponse]:
         """
         Queries the organization of the requesting account and returns the number of teams matching the query and a
         summary of each team, including the ID value, which may be a required parameter of other API calls related
@@ -168,10 +165,20 @@ class SauceLabsAgent:
         :param name: Optional. Returns the set of teams that begin with the specified name value. For example, name=sauce would
             return all teams in the organization with names beginning with "sauce".
         """
+        params = {}
+        if id:
+            params["id"] = id
+        if name:
+            params["name"] = name
+
+        query_string = "&".join([f'{key}={value}' for key, value in params.items()])
+
         response = await self.sauce_api_call(
-            f"team-management/v1/teams?id={id}&name={name}"
+            f"team-management/v1/teams?{query_string}"
         )
-        return response.json()
+        if isinstance(response, httpx.Response):
+            return LookupTeamsResponse.model_validate(response.json())
+        return ErrorResponse(error=response['error'])
 
     async def get_team(self, id: str) -> Dict[str, Any]:
         """
@@ -190,7 +197,17 @@ class SauceLabsAgent:
         response = await self.sauce_api_call(f"team-management/v1/teams/{id}/members/")
         return response.json()
 
-    async def lookup_users(self, id: str) -> Dict[str, Any]:
+    async def lookup_users(
+        self,
+        id: Optional[str] = None,
+        username: Optional[str] = None,
+        teams: Optional[str] = None,
+        roles: Optional[str] = None,
+        phrase: Optional[str] = None,
+        status: Optional[str] = None,
+        limit: Optional[int] = None,
+        offset: Optional[int] = None,
+    ) -> LookupUsers:
         """
         Queries the organization of the requesting account and returns the number of users matching the query and a basic
         profile of each user, including the ID value, which may be a required parameter of other API calls related to a
@@ -209,8 +226,28 @@ class SauceLabsAgent:
         :param limit: Optional. Limit results to a maximum number per page. Default value is 20.
         :param offset: Optional. The starting record number from which to return results.
         """
-        response = await self.sauce_api_call("team-management/v1/users/")
-        return response.json()
+        params = {}
+        if id:
+            params["id"] = id
+        if username:
+            params["username"] = username
+        if teams:
+            params["teams"] = teams
+        if roles:
+            params["roles"] = roles
+        if phrase:
+            params["phrase"] = phrase
+        if status:
+            params["status"] = status
+        if limit:
+            params["limit"] = limit
+        if offset:
+            params["offset"] = offset
+
+        query_string = "&".join([f'{key}={value}' for key, value in params.items()])
+
+        response = await self.sauce_api_call(f"team-management/v1/users/?{query_string}")
+        return LookupUsers.model_validate(response.json())
 
     async def get_user(self, id: str) -> Dict[str, Any]:
         """
@@ -227,7 +264,14 @@ class SauceLabsAgent:
         response = await self.sauce_api_call("team-management/v1/users/me/active-team/")
         return response.json()
 
-    async def lookup_service_accounts(self) -> Dict[str, Any]:
+    async def lookup_service_accounts(
+        self,
+        id: Optional[str] = None,
+        username: Optional[str] = None,
+        teams: Optional[str] = None,
+        limit: Optional[int] = None,
+        offset: Optional[int] = None,
+    ) -> LookupServiceAccounts:
         """
         Lists existing service accounts in your organization. You can filter the results using the query parameters below.
         :param id: Optional. Comma-separated service account IDs.
@@ -239,8 +283,22 @@ class SauceLabsAgent:
         :param limit: Optional. Limit results to a maximum number per page. Default value is 20.
         :param offset: Optional. The starting record number from which to return results.
         """
-        response = await self.sauce_api_call("team-management/v1/service-accounts/")
-        return response.json()
+        params = {}
+        if id:
+            params["id"] = id
+        if username:
+            params["username"] = username
+        if teams:
+            params["teams"] = teams
+        if limit:
+            params["limit"] = limit
+        if offset:
+            params["offset"] = offset
+
+        query_string = "&".join([f'{key}={value}' for key, value in params.items()])
+
+        response = await self.sauce_api_call(f"team-management/v1/service-accounts/?{query_string}")
+        return LookupServiceAccounts.model_validate(response.json())
 
     async def get_service_account(self, id: str) -> Dict[str, Any]:
         """
@@ -258,13 +316,15 @@ class SauceLabsAgent:
     # Not exposed to the Agent. We can register if we need to, but it seems better to use the helper method.
     async def get_asset_url(self, job_id: str, asset_key: str) -> str:
         asset_list = await self.get_test_assets(job_id)
-        asset_url = getattr(asset_list, asset_key)
+        asset_url = asset_list.get(asset_key)
+        if asset_url is None:
+            raise ValueError(f"Asset '{asset_key}' not found in job {job_id}")
         if isinstance(asset_url, str):
             return f"rest/v1/{self.username}/jobs/{job_id}/assets/" + asset_url
         raise ValueError(f"Asset must be string, {asset_key} is type {type(asset_url)}")
 
     # This is exposed to the Agent in case the user wants to see the links that will click through to the Sauce UI
-    async def get_test_assets(self, job_id: str) -> Union[TestAssets, Dict[str, str]]:
+    async def get_test_assets(self, job_id: str) -> Dict[str, str]:
         """
         Returns the list of all assets for a test, based on the job ID.
         :param job_id: The Sauce Labs Job ID.
@@ -272,17 +332,20 @@ class SauceLabsAgent:
         """
         response = await self.sauce_api_call(f"rest/v1/jobs/{job_id}/assets")
         if isinstance(response, httpx.Response):
-            return TestAssets.model_validate(response.json())
+            return response.json()
         return response
 
-    async def get_log_json_file(self, job_id: str) -> Union[TestLog, Dict[str, str]]:
+    async def get_log_json_file(self, job_id: str) -> Dict[str, str]:
         """
         Shows the complete log of a Sauce Labs test, in structured json format.
         """
         asset_url = await self.get_asset_url(job_id, "sauce-log")
+        sys.stderr.write(
+            f"log.json url: {asset_url}\n"
+        )
         response = await self.sauce_api_call(asset_url)
         if isinstance(response, httpx.Response):
-            return TestLog.model_validate(response.json())
+            return response.json()
         return response
 
     async def get_selenium_log_file(self, job_id: str) -> Union[str, Dict[str, str]]:
@@ -326,7 +389,7 @@ class SauceLabsAgent:
 
     async def get_recent_jobs(
         self, limit: int = 5
-    ) -> Union[RecentJobs, Dict[str, str]]:
+    ) -> Dict[str, str]:
         """
         Retrieves a list of the most recent jobs run on Sauce Labs for the current user.
         Allows specifying the number of jobs to retrieve, up to a maximum.
@@ -337,22 +400,72 @@ class SauceLabsAgent:
             f"rest/v1/{self.username}/jobs?limit={limit}"
         )
         if isinstance(response, httpx.Response):
-            return RecentJobs.model_validate(response.json())
+            return response.json()
         return response
 
     ################################## Builds endpoints
 
-    async def lookup_builds(self, build_source: str) -> Dict[str, Any]:
+    async def lookup_builds(
+        self,
+        build_source: str,
+        user_id: Optional[str] = None,
+        org_id: Optional[str] = None,
+        group_id: Optional[str] = None,
+        team_id: Optional[str] = None,
+        status: Optional[List[str]] = None,
+        start: Optional[str] = None,
+        end: Optional[str] = None,
+        limit: Optional[int] = None,
+        name: Optional[str] = None,
+        offset: Optional[int] = None,
+        sort: Optional[str] = None,
+    ) -> Dict[str, Any]:
         """
         Queries the requesting account and returns a summary of each build matching the query, including the ID value,
-        which may be a required parameter of other API calls related to a specific build.You can narrow the results of
+        which may be a required parameter of other API calls related to a specific build. You can narrow the results of
         your query using any of the optional filtering parameters.
-        :param build_source: The type of device for which you are getting builds. Valid values are: 'rdc' - Real Device
-            Builds, 'vdc' - Emulator or Simulator Builds
+        :param build_source: The type of device for which you are getting builds. Valid values are: \'rdc\' - Real Device
+            Builds, \'vdc\' - Emulator or Simulator Builds
+        :param user_id: Optional. Returns any builds owned by the specified user that the authenticated user is authorized to view. You can look up the IDs of users in your organization using the Lookup Users endpoint.
+        :param org_id: Optional. Returns all builds in the specified organization that the authenticated user is authorized to view.
+        :param group_id: Optional. Returns all builds associated with the specified group that the authenticated user is authorized to view.
+        :param team_id: Optional. Returns all builds for the specified team that the authenticated user is authorized to view.
+        :param status: Optional. Returns only builds where the status matches the list of values specified. Valid values are: running - Any job in the build has a state of running, new, or queued. error - The build is not running and at least one job in the build has a state of errored. failed - The build is not running or error and at least one job in the build has a state of failed. complete - The build is not running, error, or failed, but the number of jobs with a state of finished does not equal the number of jobs marked passed, so at least one job has a state other than passed. success -- All jobs in the build have a state of passed.
+        :param start: Optional. Returns only builds where the earliest job ran on or after this Unix timestamp.
+        :param end: Optional. Returns only builds where the latest job ran on or before this Unix timestamp.
+        :param limit: Optional. The maximum number of builds to return in the response.
+        :param name: Optional. Returns builds with a matching build name.
+        :param offset: Optional. Begins the set of results at this index number.
+        :param sort: Optional. Sorts the results in alphabetically ascending or descending order. Valid values are: asc - Ascending desc - Descending
         """
-        response = await self.sauce_api_call(f"v2/builds/{build_source}/")
-        data = response.json()
-        return data
+        params = {}
+        if user_id:
+            params["user_id"] = user_id
+        if org_id:
+            params["org_id"] = org_id
+        if group_id:
+            params["group_id"] = group_id
+        if team_id:
+            params["team_id"] = team_id
+        if status:
+            params["status"] = status
+        if start:
+            params["start"] = start
+        if end:
+            params["end"] = end
+        if limit:
+            params["limit"] = limit
+        if name:
+            params["name"] = name
+        if offset:
+            params["offset"] = offset
+        if sort:
+            params["sort"] = sort
+
+        query_string = "&".join([f'{key}={value}' for key, value in params.items()])
+
+        response = await self.sauce_api_call(f"v2/builds/{build_source}/?{query_string}")
+        return response.json()
 
     async def get_build(self, build_source: str, build_id: str) -> Dict[str, Any]:
         """
@@ -366,7 +479,7 @@ class SauceLabsAgent:
         data = response.json()
         return data
 
-    async def get_build_for_job(self, build_source: str, job_id: str) -> Dict[str, Any]:
+    async def get_build_for_job(self, build_source: str, job_id: str) -> Union[Dict[str, Any], ErrorResponse]:
         """
         Retrieve the details related to a specific build by passing its unique ID in the request.
         :param build_source: Required. The type of device for which you are getting builds. Valid values are: 'rdc'
@@ -377,24 +490,90 @@ class SauceLabsAgent:
         response = await self.sauce_api_call(
             f"v2/builds/{build_source}/jobs/{job_id}/build/"
         )
-        data = response.json()
-        return data
+        if isinstance(response, httpx.Response):
+            return response.json()
+        return ErrorResponse(error=response['error'])
 
     async def lookup_jobs_in_build(
-        self, build_source: str, build_id: str
-    ) -> Dict[str, Any]:
+        self,
+        build_source: str,
+        build_id: str,
+        modified_since: Optional[str] = None,
+        completed: Optional[bool] = None,
+        errored: Optional[bool] = None,
+        failed: Optional[bool] = None,
+        finished: Optional[bool] = None,
+        new: Optional[bool] = None,
+        passed: Optional[bool] = None,
+        public: Optional[bool] = None,
+        queued: Optional[bool] = None,
+        running: Optional[bool] = None,
+        faulty: Optional[bool] = None,
+    ) -> Union[LookupJobsInBuildResponse, Dict[str, Any]]:
         """
-        Retrieve the details related to a specific build by passing its unique ID in the request.
-        :param build_source: Required. The type of device for which you are getting builds. Valid values are: 'rdc'
-            (Real Device Builds), 'vdc' (Emulator or Simulator Builds)
+        Returns information about all jobs associated with the specified build. You can limit which jobs are
+        returned using any of the optional filtering parameters.
+        :param build_source: Required. The type of test device associated with the build and its jobs. Valid values are:
+            rdc - Real Device Builds, vdc - Emulator or Simulator Builds
         :param build_id: Required. The unique identifier of the build whose jobs you are looking up. You can look up
             build IDs in your organization using the Lookup Builds endpoint.
+        :param modified_since: Optional. Returns only jobs that have been modified after this unicode timestamp.
+        :param completed: Optional. Returns jobs based on whether they completed, meaning the tests ran uninterrupted to
+            completion: true - Return jobs that have a completed state of true, false - Return jobs that have a
+            completed state of false.
+        :param errored: Optional. Returns jobs based on their errored state: true - Return jobs that have an errored
+            state of true, false - Return jobs that have an errored state of false.
+        :param failed: Optional. Returns jobs based on their failed state: true - Return jobs that have a failed state
+            of true, false - Return jobs that have a failed state of false.
+        :param finished: Optional. Returns jobs based on whether they have finished, meaning they are no longer
+            running, but may not have run to completion: true - Return jobs that have a finished state of true, false -
+            Return jobs that have a finished state of false.
+        :param new: Optional. Returns jobs based on their new state: true - Return jobs that have a new state of true,
+            false - Return jobs that have a new state of false.
+        :param passed: Optional. Returns jobs based on their passed state: true - Return jobs that have a passed state
+            of true, false - Return jobs that have a passed state of false.
+        :param public: Optional. Returns jobs based on whether they were run on public devices: true - Return jobs that
+            have a public state of true, false - Return jobs that have a public state of false.
+        :param queued: Optional. Returns jobs based on whether their current state is queued: true - Return jobs that
+            have a queued state of true, false - Return jobs that have a queued state of false.
+        :param running: Optional. Returns jobs based on whether they are currently in a running state: true - Return
+            jobs that are currently running, false - Return jobs that are not currently running.
+        :param faulty: Optional. Returns jobs based on whether they are identified as faulty, meaning either errored or
+            failed state is true. true - Return jobs that have a faulty state of true, false - Return jobs that have a
+            faulty state of false.
         """
+        params = {}
+        if modified_since:
+            params["modified_since"] = modified_since
+        if completed is not None:
+            params["completed"] = completed
+        if errored is not None:
+            params["errored"] = errored
+        if failed is not None:
+            params["failed"] = failed
+        if finished is not None:
+            params["finished"] = finished
+        if new is not None:
+            params["new"] = new
+        if passed is not None:
+            params["passed"] = passed
+        if public is not None:
+            params["public"] = public
+        if queued is not None:
+            params["queued"] = queued
+        if running is not None:
+            params["running"] = running
+        if faulty is not None:
+            params["faulty"] = faulty
+
+        query_string = "&".join([f'{key}={value}' for key, value in params.items()])
+
         response = await self.sauce_api_call(
-            f"v2/builds/{build_source}/{build_id}/jobs/"
+            f"v2/builds/{build_source}/{build_id}/jobs/?{query_string}"
         )
-        data = response.json()
-        return data
+        if isinstance(response, httpx.Response):
+            return LookupJobsInBuildResponse.model_validate(response.json())
+        return response
 
     ################################## Sauce Connect endpoints
 
@@ -550,95 +729,6 @@ class SauceLabsAgent:
         Get a list of private devices with their device information and settings.
         """
         response = await self.sauce_api_call(f"v1/rdc/device-management/devices")
-        data = response.json()
-        return data
-
-    async def get_org_concurrency(self, org_id: str) -> Dict[str, Any]:
-        """
-        Return information about concurrency usage for organization:
-        - maximum, minimum concurrency for given granularity (monthly, weekly, daily, hourly),
-        - teams' share for the organization maximum concurrency for given granularity (in percentage),
-        - current limits.
-        :param org_id: Return results only for the specified org_id
-        :return: Json report containing org concurrency usage
-        """
-        if org_id is None:
-            account_info = await self.account_info()
-            org_id = account_info["results"][0]["organization"]["id"]
-
-    ################################## Real Device endpoints
-    async def get_devices(self) -> Dict[str, Any]:
-        """
-        Get the set of real devices located at the data center, as well as the operating system/browser
-        combinations and identifying information for each device.
-        """
-        response = await self.sauce_api_call(f"v1/rdc/devices")
-        data = response.json()
-        return data
-
-    async def get_specific_device(self, device_id:str) -> Dict[str, Any]:
-        """
-        Get information about the device specified in the request.
-        :param device_id: The unique identifier of a device in the Sauce Labs data center. You can look up device
-            IDs using the get_devices Tool.
-        """
-        response = await self.sauce_api_call(f"v1/rdc/devices/{device_id}")
-        data = response.json()
-        return data
-
-    async def get_devices_status(self, device_id: str) -> Dict[str, Any]:
-        """
-        Returns a list of devices in the data center along with their current states. Each device is represented by a
-        descriptor, indicating its model, and includes information on availability, usage status, and whether it is
-        designated as a private device. Note that the inUseBy field is exposed only for private devices
-        isPrivateDevice: true. Users can view information about who is currently using the device only if they have
-        the required permissions. Lack of permissions will result in the inUseBy field being omitted from the response
-        for private devices.
-        Available States:
-            AVAILABLE	Device is available and ready to be allocated
-            IN_USE	    Device is currently in use
-            CLEANING	Device is being cleaned (only available for private devices)
-            MAINTENANCE	Device is in maintenance (only available for private devices)
-            REBOOTING	Device is rebooting (only available for private devices)
-            OFFLINE	    Device is offline (only available for private devices)
-        """
-        response = await self.sauce_api_call(f"v1/rdc/devices/status")
-        data = response.json()
-        return data
-
-    ################################## Real Device Jobs endpoints
-    async def get_real_device_jobs(self, limit: int = 5, offset: int = 1, type: str = None) -> Dict[str, Any]:
-        """
-        Get a list of jobs that are actively running on real devices in the data center.
-        :param limit: The maximum number of jobs to return.
-        :param offset: Limit results to those following this index number. Defaults to 1.
-        :param type: Filter results to show manual tests only with LIVE.
-        """
-        response = await self.sauce_api_call(f"v1/rdc/jobs?limit={limit}&offset={offset}")
-        data = response.json()
-        return data
-
-    async def get_specific_real_device(self, job_id: str) -> Dict[str, Any]:
-        """
-        Get information about a specific job running on a real device at the data center.
-        :param job_id: Required. The unique identifier of a job running on a real device in the data center. You can look up job
-            IDs using the Get Real Device Jobs endpoint.
-        """
-        response = await self.sauce_api_call(f"v1/rdc/jobs/{job_id}")
-        data = response.json()
-        return data
-
-    async def get_specific_real_device_job_asset(self, job_id: str) -> Dict[str, Any]:
-        """
-        Download a specific asset for a job after it has completed running on a real device at the data center. The
-        available assets for a specific job depend on the test framework and whether the corresponding feature was
-        enabled during the test.
-        :param job_id: Required. The unique identifier of a job running on a real device in the data center. You can look up job
-            IDs using the Get Real Device Jobs endpoint.
-        :param asset_type: Required. The unique identifier of a job running on a real device in the data center. You can look up job
-            IDs using the Get Real Device Jobs endpoint.
-        """
-        response = await self.sauce_api_call(f"v1/rdc/jobs/{job_id}")
         data = response.json()
         return data
 
