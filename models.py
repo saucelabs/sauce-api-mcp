@@ -536,6 +536,29 @@ class AllBuildsAndTests(BaseModel):
     builds: Builds
     tests_missing_build: TestsMissingBuild
 
+class TeamSetting(BaseModel):
+    live_only: bool
+    real_devices: int
+    virtual_machines: int
+
+class Group(BaseModel):
+    id: str
+    name: str
+
+class Team(BaseModel):
+    id: str
+    settings: TeamSetting
+    group: Group
+    is_default: bool
+    name: str
+    org_uuid: str
+    user_count: Optional[int] = None # added to handle this case
+
+class LookupTeamsResponse(BaseModel):
+    links: LookupUsersLinks
+    count: int
+    results: List[Team]
+
 class JobState(BaseModel):
     completed: bool
     errored: bool
