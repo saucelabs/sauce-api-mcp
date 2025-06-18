@@ -6,8 +6,6 @@ import logging
 import json
 
 from models import (
-    TestLog,
-    TestAssets,
     JobDetails,
     AccountInfo,
     SauceStatus,
@@ -318,13 +316,15 @@ class SauceLabsAgent:
     # Not exposed to the Agent. We can register if we need to, but it seems better to use the helper method.
     async def get_asset_url(self, job_id: str, asset_key: str) -> str:
         asset_list = await self.get_test_assets(job_id)
-        asset_url = getattr(asset_list, asset_key)
+        asset_url = asset_list.get(asset_key)
+        if asset_url is None:
+            raise ValueError(f"Asset '{asset_key}' not found in job {job_id}")
         if isinstance(asset_url, str):
             return f"rest/v1/{self.username}/jobs/{job_id}/assets/" + asset_url
         raise ValueError(f"Asset must be string, {asset_key} is type {type(asset_url)}")
 
     # This is exposed to the Agent in case the user wants to see the links that will click through to the Sauce UI
-    async def get_test_assets(self, job_id: str) -> Union[TestAssets, Dict[str, str]]:
+    async def get_test_assets(self, job_id: str) -> Dict[str, str]:
         """
         Returns the list of all assets for a test, based on the job ID.
         :param job_id: The Sauce Labs Job ID.
@@ -332,17 +332,20 @@ class SauceLabsAgent:
         """
         response = await self.sauce_api_call(f"rest/v1/jobs/{job_id}/assets")
         if isinstance(response, httpx.Response):
-            return TestAssets.model_validate(response.json())
+            return response.json()
         return response
 
-    async def get_log_json_file(self, job_id: str) -> Union[TestLog, Dict[str, str]]:
+    async def get_log_json_file(self, job_id: str) -> Dict[str, str]:
         """
         Shows the complete log of a Sauce Labs test, in structured json format.
         """
         asset_url = await self.get_asset_url(job_id, "sauce-log")
+        sys.stderr.write(
+            f"log.json url: {asset_url}\n"
+        )
         response = await self.sauce_api_call(asset_url)
         if isinstance(response, httpx.Response):
-            return TestLog.model_validate(response.json())
+            return response.json()
         return response
 
     async def get_selenium_log_file(self, job_id: str) -> Union[str, Dict[str, str]]:
