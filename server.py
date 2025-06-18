@@ -20,6 +20,10 @@ from models import (
     SauceStatus,
     LookupUsersLinks,
     LookupUsers,
+    ServiceAccount,
+    ServiceAccountTeam,
+    ServiceAccountCreator,
+    LookupServiceAccounts,
 )
 
 logging.basicConfig(
@@ -259,7 +263,14 @@ class SauceLabsAgent:
         response = await self.sauce_api_call("team-management/v1/users/me/active-team/")
         return response.json()
 
-    async def lookup_service_accounts(self) -> Dict[str, Any]:
+    async def lookup_service_accounts(
+        self,
+        id: Optional[str] = None,
+        username: Optional[str] = None,
+        teams: Optional[str] = None,
+        limit: Optional[int] = None,
+        offset: Optional[int] = None,
+    ) -> LookupServiceAccounts:
         """
         Lists existing service accounts in your organization. You can filter the results using the query parameters below.
         :param id: Optional. Comma-separated service account IDs.
@@ -271,8 +282,22 @@ class SauceLabsAgent:
         :param limit: Optional. Limit results to a maximum number per page. Default value is 20.
         :param offset: Optional. The starting record number from which to return results.
         """
-        response = await self.sauce_api_call("team-management/v1/service-accounts/")
-        return response.json()
+        params = {}
+        if id:
+            params["id"] = id
+        if username:
+            params["username"] = username
+        if teams:
+            params["teams"] = teams
+        if limit:
+            params["limit"] = limit
+        if offset:
+            params["offset"] = offset
+
+        query_string = "&".join([f'{key}={value}' for key, value in params.items()])
+
+        response = await self.sauce_api_call(f"team-management/v1/service-accounts/?{query_string}")
+        return LookupServiceAccounts.model_validate(response.json())
 
     async def get_service_account(self, id: str) -> Dict[str, Any]:
         """
