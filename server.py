@@ -1,5 +1,5 @@
 from mcp.server import FastMCP
-from typing import Dict, Any, Union  # For type hinting dicts
+from typing import Dict, Any, Union, Optional  # For type hinting dicts
 import httpx
 import sys
 import logging
@@ -18,6 +18,8 @@ from models import (
     AccountInfo,
     AllBuildsAndTests,
     SauceStatus,
+    LookupUsersLinks,
+    LookupUsers,
 )
 
 logging.basicConfig(
