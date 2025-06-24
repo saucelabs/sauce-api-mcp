@@ -1,3 +1,5 @@
+import base64
+
 from mcp.server import FastMCP
 from typing import Dict, Any, Union, Optional, List  # For type hinting dicts
 import httpx
@@ -65,9 +67,6 @@ class SauceLabsAgent:
         self.mcp.tool()(self.lookup_builds)
         self.mcp.tool()(self.lookup_jobs_in_build)
 
-        ### Platform
-        self.mcp.tool()(self.get_sauce_status)
-
         ### Sauce Connect
         self.mcp.tool()(self.get_tunnels_for_user)
         self.mcp.tool()(self.get_tunnel_information)
@@ -80,7 +79,6 @@ class SauceLabsAgent:
         self.mcp.tool()(self.get_storage_groups_settings)
 
         ### Real Devices
-        self.mcp.tool()(self.get_devices)
         self.mcp.tool()(self.get_specific_device)
         self.mcp.tool()(self.get_devices_status)
         self.mcp.tool()(self.get_real_device_jobs)
@@ -100,6 +98,9 @@ class SauceLabsAgent:
             return response
 
         except httpx.HTTPStatusError as e:
+            if e.response.status_code in [404, 500]:
+                return e.response
+
             sys.stderr.write(
                 f">>>>>>>>>>>>HTTP error fetching data from {relative_endpoint}: {e}\n"
             )
@@ -383,9 +384,31 @@ class SauceLabsAgent:
         Retrieves the execution details of a particular job, by ID.
         """
         response = await self.sauce_api_call(f"rest/v1/{self.username}/jobs/{job_id}")
-        if isinstance(response, httpx.Response):
+        if response.status_code == 200:
             return JobDetails.model_validate(response.json())
-        return response
+        elif response.status_code == 404:
+            return {
+                "error": f"Job not found: {job_id}",
+                "job_id": job_id,
+                "possible_reasons": [
+                    "Job ID does not exist",
+                    "Job data may have expired due to retention policies",
+                    "Job may be from RDC platform (different endpoints)",
+                    "Insufficient permissions to access this job"
+                ],
+                "suggestions": [
+                    "Verify job ID is correct",
+                    "Use get_recent_jobs to find available jobs",
+                    "Check if this is a VDC vs RDC job",
+                    "Ensure you have access to this job"
+                ]
+            }
+        else:
+            return {
+                "error": f"API request failed with status {response.status_code}",
+                "job_id": job_id,
+                "status_code": response.status_code
+            }
 
     async def get_recent_jobs(
         self, limit: int = 5
@@ -509,7 +532,7 @@ class SauceLabsAgent:
         queued: Optional[bool] = None,
         running: Optional[bool] = None,
         faulty: Optional[bool] = None,
-    ) -> Union[LookupJobsInBuildResponse, Dict[str, Any]]:
+    ) -> Dict[str, Any]:
         """
         Returns information about all jobs associated with the specified build. You can limit which jobs are
         returned using any of the optional filtering parameters.
@@ -572,7 +595,48 @@ class SauceLabsAgent:
             f"v2/builds/{build_source}/{build_id}/jobs/?{query_string}"
         )
         if isinstance(response, httpx.Response):
-            return LookupJobsInBuildResponse.model_validate(response.json())
+            if response.status_code == 200:
+                jobs_data = response.json()
+
+                # Check if we got an empty jobs list and provide context
+                if "jobs" in jobs_data and len(jobs_data["jobs"]) == 0:
+                    # Add helpful messaging for empty results
+                    jobs_data["data_retention_info"] = {
+                        "message": "No jobs found for this build. Jobs may no longer be available due to data retention policies.",
+                        "note": "Jobs for builds older than ~3 months may have been archived or purged.",
+                        "suggestions": [
+                            "Try a more recent build ID",
+                            "Use get_recent_jobs to find currently available jobs",
+                            f"Verify this {build_source} build exists and has associated jobs"
+                        ]
+                    }
+
+                return jobs_data
+
+            elif response.status_code == 404:
+                return {
+                    "error": f"Build not found: {build_id}",
+                    "build_id": build_id,
+                    "build_source": build_source,
+                    "possible_reasons": [
+                        "Build ID does not exist",
+                        "Build data may have expired due to retention policies",
+                        "Incorrect build_source parameter (vdc vs rdc)"
+                    ],
+                    "suggestions": [
+                        "Verify build ID is correct using lookup_builds",
+                        "Check if build_source should be 'vdc' or 'rdc'",
+                        "Try a more recent build"
+                    ]
+                }
+
+            else:
+                return {
+                    "error": f"API request failed with status {response.status_code}",
+                    "build_id": build_id,
+                    "build_source": build_source,
+                    "status_code": response.status_code
+                }
         return response
 
     ################################## Sauce Connect endpoints
@@ -598,8 +662,7 @@ class SauceLabsAgent:
         :param tunnel_id: Required. The unique identifier of the requested tunnel.
         """
         response = await self.sauce_api_call(f"rest/v1/{username}/tunnels/{tunnel_id}")
-        data = response.json()
-        return data
+        return self.process_tunnel_response(response, tunnel_id, username)
 
     async def get_tunnel_version_downloads(self, client_version: str) -> Dict[str, Any]:
         """
@@ -624,40 +687,50 @@ class SauceLabsAgent:
         :param tunnel_id: Required. The unique identifier of the requested tunnel.
         """
         response = await self.sauce_api_call(f"rest/v1/{username}/tunnels/{tunnel_id}/num_jobs")
-        data = response.json()
-        return data
 
-    ################################## Sauce system metrics
-    async def get_sauce_status(self) -> Union[SauceStatus, Dict[str, str]]:
-        """
-        Returns the current (30 second cache) availability of the Sauce Labs platform. This should tell you whether Sauce is 'up' or 'down'
-        """
-        response = await self.sauce_api_call("rest/v1/info/status")
+        return self.process_tunnel_response(response, tunnel_id, username)
+
+    @staticmethod
+    def process_tunnel_response(response, tunnel_id, username):
         if isinstance(response, httpx.Response):
-            return SauceStatus.model_validate(response.json())
+            if response.status_code == 200:
+                return response.json()
+            elif response.status_code in [404, 500]:
+                return {
+                    "error": f"Tunnel not found: {tunnel_id}",
+                    "tunnel_id": tunnel_id,
+                    "username": username,
+                    "possible_reasons": [
+                        "Tunnel ID does not exist",
+                        "Tunnel has been terminated",
+                        "Insufficient permissions to access this tunnel"
+                    ],
+                    "suggestions": [
+                        "Use get_tunnels_for_user to find active tunnels",
+                        "Verify tunnel ID is correct",
+                        "Check if tunnel is still running"
+                    ]
+                }
+            else:
+                return {
+                    "error": f"API request failed with status {response.status_code}",
+                    "tunnel_id": tunnel_id,
+                    "status_code": response.status_code
+                }
         return response
 
     ################################## Real Device endpoints
-    async def get_devices(self) -> Dict[str, Any]:
-        """
-        Get the set of real devices located at the data center, as well as the operating system/browser
-        combinations and identifying information for each device.
-        """
-        response = await self.sauce_api_call(f"v1/rdc/devices")
-        data = response.json()
-        return data
-
     async def get_specific_device(self, device_id:str) -> Dict[str, Any]:
         """
         Get information about the device specified in the request.
-        :param device_id: The unique identifier of a device in the Sauce Labs data center. You can look up device
-            IDs using the get_devices Tool.
+        :param device_id: Required. The unique identifier of a device in the Sauce Labs
+            data center. Use the 'descriptor' value from get_devices_status results.
         """
         response = await self.sauce_api_call(f"v1/rdc/devices/{device_id}")
         data = response.json()
         return data
 
-    async def get_devices_status(self, device_id: str) -> Dict[str, Any]:
+    async def get_devices_status(self) -> Dict[str, Any]:
         """
         Returns a list of devices in the data center along with their current states. Each device is represented by a
         descriptor, indicating its model, and includes information on availability, usage status, and whether it is
@@ -665,6 +738,10 @@ class SauceLabsAgent:
         isPrivateDevice: true. Users can view information about who is currently using the device only if they have
         the required permissions. Lack of permissions will result in the inUseBy field being omitted from the response
         for private devices.
+
+        This tool provides a lightweight overview of all devices. For detailed device specifications, use the
+        get_specific_device tool with the descriptor value as the device_id parameter.
+
         Available States:
             AVAILABLE	Device is available and ready to be allocated
             IN_USE	    Device is currently in use
@@ -672,6 +749,9 @@ class SauceLabsAgent:
             MAINTENANCE	Device is in maintenance (only available for private devices)
             REBOOTING	Device is rebooting (only available for private devices)
             OFFLINE	    Device is offline (only available for private devices)
+
+        Note: The 'descriptor' field in each device object is the device identifier that should be used as the
+        'device_id' parameter in get_specific_device calls.
         """
         response = await self.sauce_api_call(f"v1/rdc/devices/status")
         data = response.json()
@@ -721,6 +801,14 @@ class SauceLabsAgent:
             'crash.json' - Crash Logs | Appium
         """
         response = await self.sauce_api_call(f"v1/rdc/jobs/{job_id}/{asset_type}")
+        if response.status_code == 200:
+            return {
+                "content": base64.b64encode(response.content).decode('utf-8'),
+                "encoding": "base64",
+                "content_type": response.headers.get("content-type"),
+                "filename": f"{job_id}_{asset_type}",
+                "size": len(response.content)
+            }
         data = response.json()
         return data
 
