@@ -188,6 +188,21 @@ class SauceLabsAgent:
             using the Lookup Teams endpoint.
         """
         response = await self.sauce_api_call(f"team-management/v1/teams/{id}")
+        if response.status_code == 404:
+            return {
+                "error": f"Team not found: {id}",
+                "team_id": id,
+                "possible_reasons": [
+                    "Team ID does not exist",
+                    "Team has been deleted",
+                    "Insufficient permissions to access this team"
+                ],
+                "suggestions": [
+                    "Use lookup_teams to find available teams",
+                    "Verify team ID is correct",
+                    "Check your organization permissions"
+                ]
+            }
         return response.json()
 
     async def list_team_members(self, id: str) -> Dict[str, Any]:
@@ -256,6 +271,21 @@ class SauceLabsAgent:
         :param id: Required. The user's unique identifier. Specific user IDs can be obtained through the lookup_users Tool
         """
         response = await self.sauce_api_call(f"team-management/v1/users/{id}/")
+        if response.status_code == 404:
+            return {
+                "error": f"User not found: {id}",
+                "user_id": id,
+                "possible_reasons": [
+                    "User ID does not exist",
+                    "User has been deleted or deactivated",
+                    "Insufficient permissions to access this user"
+                ],
+                "suggestions": [
+                    "Use lookup_users to find available users",
+                    "Verify user ID is correct",
+                    "Check your organization permissions"
+                ]
+            }
         return response.json()
 
     async def get_my_active_team(self) -> Dict[str, Any]:
@@ -311,15 +341,36 @@ class SauceLabsAgent:
         response = await self.sauce_api_call(
             f"team-management/v1/service-accounts/{id}/"
         )
+        if response.status_code == 404:
+            return {
+                "error": f"Service account not found: {id}",
+                "service_account_id": id,
+                "possible_reasons": [
+                    "Service account ID does not exist",
+                    "Service account has been deleted",
+                    "Insufficient permissions to access this service account"
+                ],
+                "suggestions": [
+                    "Use lookup_service_accounts to find available service accounts",
+                    "Verify service account ID is correct",
+                    "Check your organization permissions"
+                ]
+            }
         return response.json()
 
     ################################## Jobs endpoints
     # Not exposed to the Agent. We can register if we need to, but it seems better to use the helper method.
     async def get_asset_url(self, job_id: str, asset_key: str) -> str:
         asset_list = await self.get_test_assets(job_id)
+
+        if isinstance(asset_list, dict) and "error" in asset_list:
+            raise ValueError(f"Cannot get asset URL: {asset_list['error']}")
+
         asset_url = asset_list.get(asset_key)
         if asset_url is None:
-            raise ValueError(f"Asset '{asset_key}' not found in job {job_id}")
+            raise ValueError(
+                f"Asset '{asset_key}' not found in job {job_id}. Available assets: {list(asset_list.keys())}")
+
         if isinstance(asset_url, str):
             return f"rest/v1/{self.username}/jobs/{job_id}/assets/" + asset_url
         raise ValueError(f"Asset must be string, {asset_key} is type {type(asset_url)}")
@@ -328,17 +379,51 @@ class SauceLabsAgent:
     async def get_test_assets(self, job_id: str) -> Dict[str, str]:
         """
         Returns the list of all assets for a test, based on the job ID.
-        :param job_id: The Sauce Labs Job ID.
+
+        IMPORTANT: Only use this method with Virtual Device Cloud (VDC) jobs. This will fail
+        with a 404 error for Real Device Cloud (RDC) jobs. If you get an error about
+        "Real Device job", use get_specific_real_device_job_asset instead.
+
+        To determine job type: RDC jobs typically have device names like "Samsung Galaxy" or "iPhone 14".
+        VDC jobs typically have browser names like "chrome", "firefox", or platform names like "Windows 11".
+
+        :param job_id: The Sauce Labs Job ID (VDC jobs only).
         :return: JSON containing a list of assets, from which the URL can be derived.
         """
         response = await self.sauce_api_call(f"rest/v1/jobs/{job_id}/assets")
         if isinstance(response, httpx.Response):
-            return response.json()
+            if response.status_code == 200:
+                return response.json()
+            elif response.status_code == 404:
+                return {
+                    "error": f"Assets not found for job: {job_id}",
+                    "job_id": job_id,
+                    "possible_reasons": [
+                        "Job ID does not exist",
+                        "Job is a Real Device (RDC) job - use get_specific_real_device_job_asset instead",
+                        "Job data may have expired due to retention policies"
+                    ],
+                    "suggestions": [
+                        "Verify job ID is correct",
+                        "For RDC jobs, use get_specific_real_device_job_asset with asset types like 'deviceLogs', 'appiumLogs'",
+                        "Use get_recent_jobs to find available jobs"
+                    ]
+                }
         return response
 
     async def get_log_json_file(self, job_id: str) -> Dict[str, str]:
         """
         Shows the complete log of a Sauce Labs test, in structured json format.
+
+        IMPORTANT: This method only works with Virtual Device Cloud (VDC) jobs. For Real Device
+        Cloud (RDC) jobs, use get_specific_real_device_job_asset with asset_type='appiumLogs'
+        or 'deviceLogs' instead.
+
+        If this method fails with "asset not found", the job is likely an RDC job - try
+        get_specific_real_device_job_asset instead.
+
+        :param job_id: The Sauce Labs Job ID (VDC jobs only).
+        :return: Structured JSON log data with test commands, timing, and screenshots.
         """
         asset_url = await self.get_asset_url(job_id, "sauce-log")
         sys.stderr.write(
@@ -382,6 +467,16 @@ class SauceLabsAgent:
     async def get_job_details(self, job_id: str) -> Union[JobDetails, Dict[str, str]]:
         """
         Retrieves the execution details of a particular job, by ID.
+
+        This method works for both Virtual Device Cloud (VDC) and Real Device Cloud (RDC) though
+        the returned data structure may vary between platforms.
+
+        Use this method first to understand what type of job you're working with:
+            - If 'device_name' contains mobile devices → RDC job → use get_specific_real_device_job_asset for assets
+            - If 'browser' field shows web browsers → VDC job → use get_test_assets for assets
+
+        :param job_id: The Sauce Labs Job ID (works for both VDC and RDC jobs).
+        :return: Detailed job information including status, timing, configuration, and platform-specific data.
         """
         response = await self.sauce_api_call(f"rest/v1/{self.username}/jobs/{job_id}")
         if response.status_code == 200:
@@ -499,6 +594,22 @@ class SauceLabsAgent:
             organization using the Lookup Builds endpoint.
         """
         response = await self.sauce_api_call(f"v2/builds/{build_source}/{build_id}/")
+        if response.status_code == 404:
+            return {
+                "error": f"Build not found: {build_id}",
+                "build_id": build_id,
+                "build_source": build_source,
+                "possible_reasons": [
+                    "Build ID does not exist",
+                    "Build data may have expired due to retention policies",
+                    "Incorrect build source specified (rdc vs vdc)"
+                ],
+                "suggestions": [
+                    "Use lookup_builds to find available builds",
+                    "Verify build ID and build_source are correct",
+                    "Try the other build_source (rdc vs vdc)"
+                ]
+            }
         data = response.json()
         return data
 
@@ -514,6 +625,22 @@ class SauceLabsAgent:
             f"v2/builds/{build_source}/jobs/{job_id}/build/"
         )
         if isinstance(response, httpx.Response):
+            if response.status_code == 404:
+                return {
+                    "error": f"Build not found for job: {job_id}",
+                    "job_id": job_id,
+                    "build_source": build_source,
+                    "possible_reasons": [
+                        "Job ID does not exist",
+                        "Job is not associated with a build",
+                        "Incorrect build source specified (rdc vs vdc)"
+                    ],
+                    "suggestions": [
+                        "Use get_job_details to verify job exists",
+                        "Try the other build_source (rdc vs vdc)",
+                        "Some jobs may not be part of a build"
+                    ]
+                }
             return response.json()
         return ErrorResponse(error=response['error'])
 
@@ -781,9 +908,16 @@ class SauceLabsAgent:
 
     async def get_specific_real_device_job_asset(self, job_id: str, asset_type: str) -> Dict[str, Any]:
         """
-        Download a specific asset for a job after it has completed running on a real device at the data center. The
-        available assets for a specific job depend on the test framework and whether the corresponding feature was
-        enabled during the test.
+        Download a specific asset for a Real Device Cloud (RDC) job.
+
+        USE THIS METHOD WHEN:
+        - The job ran on a physical mobile device (iPhone, Android, etc.)
+        - get_test_assets returns an error about "Real Device job"
+        - get_log_json_file fails with asset not found errors
+        - You need logs/videos from mobile app testing
+
+        For web browser testing on virtual machines, use get_test_assets instead.
+
         :param job_id: Required. The unique identifier of a job running on a real device in the data center. You can look up job
             IDs using the Get Real Device Jobs endpoint.
         :param asset_type: Required. The unique identifier of a job running on a real device in the data center. You can look up job
