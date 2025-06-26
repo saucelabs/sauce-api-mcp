@@ -5,15 +5,12 @@ from typing import Dict, Any, Union, Optional, List  # For type hinting dicts
 import httpx
 import sys
 import logging
-import json
 
-from models import (
+from src.sauce_mcp.models import (
     JobDetails,
     AccountInfo,
-    SauceStatus,
     LookupUsers,
     LookupServiceAccounts,
-    LookupJobsInBuildResponse,
     LookupTeamsResponse,
     ErrorResponse
 )
