@@ -27,7 +27,7 @@ class SauceLabsAgent:
         mcp_server: FastMCP,
         access_key: str,
         username: str,
-        data_center: str = "us-west-1",
+        data_center: str = "us-west-1"
     ):
         sys.stderr.write(">>>>>>>>>>>>Initializing SauceLabsAgent\n")
         self.mcp = mcp_server
