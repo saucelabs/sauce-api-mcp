@@ -6,7 +6,7 @@ import httpx
 import sys
 import logging
 
-from src.sauce_mcp.models import (
+from models import (
     JobDetails,
     AccountInfo,
     LookupUsers,
@@ -461,7 +461,7 @@ class SauceLabsAgent:
             return response.json()
         return response
 
-    async def get_job_details(self, job_id: str) -> Union[JobDetails, Dict[str, str]]:
+    async def get_job_details(self, job_id: str) -> Dict[str, Any]:
         """
         Retrieves the execution details of a particular job, by ID.
 
@@ -477,7 +477,7 @@ class SauceLabsAgent:
         """
         response = await self.sauce_api_call(f"rest/v1/{self.username}/jobs/{job_id}")
         if response.status_code == 200:
-            return JobDetails.model_validate(response.json())
+            return response.json()
         elif response.status_code == 404:
             return {
                 "error": f"Job not found: {job_id}",
@@ -504,7 +504,7 @@ class SauceLabsAgent:
 
     async def get_recent_jobs(
         self, limit: int = 5
-    ) -> Dict[str, str]:
+    ) -> Dict[str, Any]:
         """
         Retrieves a list of the most recent jobs run on Sauce Labs for the current user.
         Allows specifying the number of jobs to retrieve, up to a maximum.
@@ -515,8 +515,14 @@ class SauceLabsAgent:
             f"rest/v1/{self.username}/jobs?limit={limit}"
         )
         if isinstance(response, httpx.Response):
-            return response.json()
-        return response
+            jobs = response.json()
+            return {
+                "jobs": jobs,
+                "total": len(jobs),
+                "page": 1,
+                "per_page": limit
+            }
+        return {"jobs": response, "total": len(response), "page": 1, "per_page": limit}
 
     ################################## Builds endpoints
 
@@ -773,8 +779,14 @@ class SauceLabsAgent:
         :param username: Required. The authentication username of the user whose tunnels you are requesting.
         """
         response = await self.sauce_api_call(f"rest/v1/{username}/tunnels")
-        data = response.json()
-        return data
+        if isinstance(response, httpx.Response):
+            tunnels = response.json()
+            return {
+                "tunnels": tunnels,
+                "count": len(tunnels),
+                "username": username
+            }
+        return {"tunnels": response, "count": len(response), "username": username}
 
     async def get_tunnel_information(
         self, username: str, tunnel_id: str
@@ -949,7 +961,7 @@ class SauceLabsAgent:
         """
         response = await self.sauce_api_call(f"v1/rdc/device-management/devices")
         data = response.json()
-        return data
+        return {"devices": data}
 
     ################################## Storage endpoints
     async def get_storage_files(self) -> Dict[str, Any]:
