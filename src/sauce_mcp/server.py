@@ -28,7 +28,6 @@ class SauceLabsAgent:
         username: str,
         data_center: str = "us-west-1"
     ):
-        sys.stderr.write(">>>>>>>>>>>>Initializing SauceLabsAgent\n")
         self.mcp = mcp_server
 
         self.username = username
@@ -1017,6 +1016,4 @@ if __name__ == "__main__":
     sauce_agent = SauceLabsAgent(mcp_server_instance, SAUCE_ACCESS_KEY, SAUCE_USERNAME)
 
     # Run the FastMCP server instance
-    sys.stderr.write(">>>>>>>>>>>>About to run SauceLabsAgent\n")
     mcp_server_instance.run(transport="stdio")
-    sys.stderr.write(">>>>>>>>>>>>Finished running SauceLabsAgent\n")

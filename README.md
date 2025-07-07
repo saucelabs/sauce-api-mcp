@@ -113,11 +113,12 @@ git clone https://github.com/your-org/sauce-mcp-server.git
 cd sauce-mcp-server
 pip install -e .
 
-3. Configure Claude Code:
+3. Configure LLM Client:
+
+#### Claude Code
 Create or edit your Claude Code configuration:
 bash# Create config directory if it doesn't exist
 mkdir -p ~/.config/claude-code
-
 
 code ~/.config/claude-code/config.json
 
@@ -134,18 +135,28 @@ json{
   }
 }
 
-4. Start using Claude Code with Sauce Labs:
-bash# Navigate to your test project
-cd /path/to/your/test/project
+#### Goose
 
-#### Start Claude Code session
+Within your `~/.config/goose/config.yaml` file, add the following extension:
+
+  ```bash
+  sauce-api-mcp:
+    args: []
+    bundled: null
+    cmd: /<path>/sauce-api-mcp/start_server.sh
+    description: Sauce Labs MCP for API
+    enabled: true
+    env_keys: []
+    envs: {}
+    name: sauce-api-mcp
+    timeout: 10
+    type: stdio
 ```
-$ claude-code
-```
+
 #### Now you can ask questions like:
-#### "Show me my recent test failures"
-#### "Find available iPhone devices for testing"
-#### "Analyze the performance of my latest build"
+* "Show me my recent test failures"
+* "Find available iPhone devices for testing"
+* "Analyze the performance of my latest build"
 
 ## Configuration ##
 ### Required Environment Variables ###

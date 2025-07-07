@@ -12,7 +12,6 @@ __email__ = "marcus.merrell@saucelabs.com"
 # Import main classes/functions that users should access
 from .server import SauceLabsAgent
 from .models import (
-    JobDetails,
     AccountInfo,
     LookupUsers,
     LookupServiceAccounts,
@@ -22,7 +21,6 @@ from .models import (
 # Define what gets imported with "from sauce_mcp import *"
 __all__ = [
     "SauceLabsAgent",
-    "JobDetails",
     "AccountInfo",
     "LookupUsers",
     "LookupServiceAccounts",
