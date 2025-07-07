@@ -152,6 +152,17 @@ Within your `~/.config/goose/config.yaml` file, add the following extension:
     timeout: 10
     type: stdio
 ```
+#### Gemini CLI
+
+Within your `~/.gemini/settings.json` file, add the following:
+
+```json
+  "mcpServers": {
+    "sauce-api-mcp": {
+      "command": "/Users/marcusmerrell/Projects/sauce-api-mcp/start_server.sh",
+      "args": []
+    }
+```
 
 #### Now you can ask questions like:
 * "Show me my recent test failures"
