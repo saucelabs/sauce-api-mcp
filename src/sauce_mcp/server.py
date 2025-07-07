@@ -7,7 +7,6 @@ import sys
 import logging
 
 from models import (
-    JobDetails,
     AccountInfo,
     LookupUsers,
     LookupServiceAccounts,
