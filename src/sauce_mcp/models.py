@@ -99,9 +99,8 @@ class TestAssets(BaseModel):
     selenium_log: str = Field(..., alias="selenium-log")
     sauce_log: str = Field(..., alias="sauce-log")
     video: str
-    cdp_log: Optional[str] = Field(..., alias="cdp-log")
-    screenshots: List[str]
-
+    cdp_log: Optional[str] = Field(None, alias="cdp-log")
+    screenshots: Optional[List[str]] = None
 
 class Browser(BaseModel):
     show_update_promotion_info_bar: bool

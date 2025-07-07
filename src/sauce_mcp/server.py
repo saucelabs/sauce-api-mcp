@@ -373,7 +373,7 @@ class SauceLabsAgent:
         raise ValueError(f"Asset must be string, {asset_key} is type {type(asset_url)}")
 
     # This is exposed to the Agent in case the user wants to see the links that will click through to the Sauce UI
-    async def get_test_assets(self, job_id: str) -> Dict[str, str]:
+    async def get_test_assets(self, job_id: str) -> Dict[str, Any]:
         """
         Returns the list of all assets for a test, based on the job ID.
 
@@ -408,7 +408,7 @@ class SauceLabsAgent:
                 }
         return response
 
-    async def get_log_json_file(self, job_id: str) -> Dict[str, str]:
+    async def get_log_json_file(self, job_id: str) -> Union[List[Dict[str, Any]], Dict[str, str]]:
         """
         Shows the complete log of a Sauce Labs test, in structured json format.
 
@@ -422,14 +422,19 @@ class SauceLabsAgent:
         :param job_id: The Sauce Labs Job ID (VDC jobs only).
         :return: Structured JSON log data with test commands, timing, and screenshots.
         """
-        asset_url = await self.get_asset_url(job_id, "sauce-log")
+        asset_url: str = await self.get_asset_url(job_id, "sauce-log")
         sys.stderr.write(
             f"log.json url: {asset_url}\n"
         )
         response = await self.sauce_api_call(asset_url)
+
         if isinstance(response, httpx.Response):
-            return response.json()
-        return response
+            if response.status_code == 200:
+                return response.json()
+            else:
+                return {"error": f"Failed to get logs: {response.status_code}"}
+        return {"error": "Invalid response type"}
+
 
     async def get_selenium_log_file(self, job_id: str) -> Union[str, Dict[str, str]]:
         """
@@ -780,12 +785,18 @@ class SauceLabsAgent:
         """
         response = await self.sauce_api_call(f"rest/v1/{username}/tunnels")
         if isinstance(response, httpx.Response):
+            if response.status_code == 404:
+                return {"error": "User not found"}
+            elif response.status_code == 403:
+                return {"error": "Access denied to user tunnel data"}
+
             tunnels = response.json()
             return {
                 "tunnels": tunnels,
                 "count": len(tunnels),
                 "username": username
             }
+
         return {"tunnels": response, "count": len(response), "username": username}
 
     async def get_tunnel_information(

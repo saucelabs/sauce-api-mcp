@@ -96,6 +96,57 @@ notepad %APPDATA%\Claude\claude_desktop_config.json
    
 4. **Restart Claude Desktop to load the new MCP server.**
 
+### For Claude Code (Terminal Integration)
+
+Claude Code allows you to use the Sauce Labs MCP server directly from your terminal for AI-assisted testing workflows.
+
+1. **Install Claude Code**:
+   ```bash
+   # Install Claude Code (if not already installed)
+   curl -fsSL https://claude.ai/claude-code/install.sh | sh
+   ```
+   
+2. Install the Sauce Labs MCP server:
+
+bash# Clone and install the MCP server
+git clone https://github.com/your-org/sauce-mcp-server.git
+cd sauce-mcp-server
+pip install -e .
+
+3. Configure Claude Code:
+Create or edit your Claude Code configuration:
+bash# Create config directory if it doesn't exist
+mkdir -p ~/.config/claude-code
+
+
+code ~/.config/claude-code/config.json
+
+Add the Sauce Labs MCP server configuration:
+json{
+  "mcpServers": {
+    "sauce-labs": {
+      "command": "sauce-mcp-server",
+      "env": {
+        "SAUCE_USERNAME": "your-sauce-username",
+        "SAUCE_ACCESS_KEY": "your-sauce-access-key"
+      }
+    }
+  }
+}
+
+4. Start using Claude Code with Sauce Labs:
+bash# Navigate to your test project
+cd /path/to/your/test/project
+
+#### Start Claude Code session
+```
+$ claude-code
+```
+#### Now you can ask questions like:
+#### "Show me my recent test failures"
+#### "Find available iPhone devices for testing"
+#### "Analyze the performance of my latest build"
+
 ## Configuration ##
 ### Required Environment Variables ###
 - SAUCE_USERNAME: Your Sauce Labs username
