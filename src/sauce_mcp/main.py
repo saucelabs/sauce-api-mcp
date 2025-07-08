@@ -5,6 +5,7 @@ from typing import Dict, Any, Union, Optional, List  # For type hinting dicts
 import httpx
 import sys
 import logging
+from urllib.parse import urlencode
 
 from models import (
     AccountInfo,
@@ -433,7 +434,6 @@ class SauceLabsAgent:
                 return {"error": f"Failed to get logs: {response.status_code}"}
         return {"error": "Invalid response type"}
 
-
     async def get_selenium_log_file(self, job_id: str) -> Union[str, Dict[str, str]]:
         """
         Shows the complete log of a Sauce Labs test, in unstructured raw format.
@@ -555,8 +555,8 @@ class SauceLabsAgent:
         :param group_id: Optional. Returns all builds associated with the specified group that the authenticated user is authorized to view.
         :param team_id: Optional. Returns all builds for the specified team that the authenticated user is authorized to view.
         :param status: Optional. Returns only builds where the status matches the list of values specified. Valid values are: running - Any job in the build has a state of running, new, or queued. error - The build is not running and at least one job in the build has a state of errored. failed - The build is not running or error and at least one job in the build has a state of failed. complete - The build is not running, error, or failed, but the number of jobs with a state of finished does not equal the number of jobs marked passed, so at least one job has a state other than passed. success -- All jobs in the build have a state of passed.
-        :param start: Optional. Returns only builds where the earliest job ran on or after this Unix timestamp.
-        :param end: Optional. Returns only builds where the latest job ran on or before this Unix timestamp.
+        :param start: Optional. Returns only builds where the earliest job ran on or after this Unix timestamp. Note: If experiencing errors, try providing both start and end parameters together.
+        :param end: Optional. Returns only builds where the latest job ran on or before this Unix timestamp. Note: If experiencing errors, try providing both start and end parameters together.
         :param limit: Optional. The maximum number of builds to return in the response.
         :param name: Optional. Returns builds with a matching build name.
         :param offset: Optional. Begins the set of results at this index number.
@@ -586,10 +586,28 @@ class SauceLabsAgent:
         if sort:
             params["sort"] = sort
 
-        query_string = "&".join([f'{key}={value}' for key, value in params.items()])
+        # This will handle the wonky List of strings
+        formatted_params = []
+        for key, value in params.items():
+            if isinstance(value, list):
+                for item in value:
+                    formatted_params.append((key, item))
+            else:
+                formatted_params.append((key, value))
 
-        response = await self.sauce_api_call(f"v2/builds/{build_source}/?{query_string}")
-        return response.json()
+        query_string = urlencode(formatted_params)
+        try:
+            response = await self.sauce_api_call(f"v2/builds/{build_source}/?{query_string}")
+            return response.json()
+        except Exception as e:
+            # Check if it's a timestamp-related error
+            if ('end' in params and 'start' not in params) or ('start' in params and 'end' not in params):
+                raise ValueError(
+                    "Time range filtering may require both 'start' and 'end' parameters. "
+                    f"Try providing both parameters together. Original error: {e}"
+                )
+            else:
+                raise e
 
     async def get_build(self, build_source: str, build_id: str) -> Dict[str, Any]:
         """
