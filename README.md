@@ -115,7 +115,7 @@ pip install -e .
 
 3. Configure LLM Client:
 
-#### Claude Code
+#### [Claude Code](https://github.com/anthropics/claude-code)
 Create or edit your Claude Code configuration:
 bash# Create config directory if it doesn't exist
 mkdir -p ~/.config/claude-code
@@ -135,7 +135,7 @@ json{
   }
 }
 
-#### Goose
+#### [Goose](https://block.github.io/goose/)
 
 Within your `~/.config/goose/config.yaml` file, add the following extension:
 
@@ -152,7 +152,7 @@ Within your `~/.config/goose/config.yaml` file, add the following extension:
     timeout: 10
     type: stdio
 ```
-#### Gemini CLI
+#### [Gemini CLI](https://github.com/google-gemini/gemini-cli)
 
 Within your `~/.gemini/settings.json` file, add the following:
 
@@ -310,8 +310,33 @@ Enable debug logging by setting environment variables:
 - API Reference: docs.saucelabs.com/dev/api
 - Support: Contact Sauce Labs support through your account dashboard
 
-License
+# License
 This project is licensed under the MIT License - see the LICENSE file for details.
+
+# Roadmap
+
+This roadmap outlines our vision and priorities for the project. It's a living document, and we welcome feedback and contributions from the
+community! While we aim to follow this plan, priorities can change based on user feedback and new opportunities.
+
+Want to help? We'd love to have you!
+
+* Check out our **CONTRIBUTING.md** (CONTRIBUTING.md) guide.
+* Find an existing issue in our **Issue Tracker** (../issues) that interests you.
+* Have a new idea? **Open a new issue** (../issues/new/choose) to discuss it with us.
+
+## 🎯 Short-Term (Next 1-3 Months)
+Our immediate focus is on enhancing the core developer experience and improving context management.
+
+## Resources & Tools - Optimizing Model Calls
+* Description: Implement Resources comprehensively for model responses. For some prompts, this will reduce latency and cost by returning a
+cached result instead of making a new API call.
+* Status: Planning
+
+🚀 Mid-Term (3-6 Months)
+
+We plan to focus on adding API endpoints and improving overall interaction with the LLM. We will also maintain the Server to keep up with changes to 
+the Sauce Labs API, and to add new product lines as they are introduced.
+
 
 # Changelog
 ## v1.0.0
