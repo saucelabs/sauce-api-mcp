@@ -10,7 +10,7 @@ __author__ = "Marcus Merrell"
 __email__ = "marcus.merrell@saucelabs.com"
 
 # Import main classes/functions that users should access
-from .server import SauceLabsAgent
+from .main import SauceLabsAgent
 from .models import (
     AccountInfo,
     LookupUsers,

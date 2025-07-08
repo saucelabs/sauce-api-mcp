@@ -26,15 +26,13 @@ To ensure a consistent development experience, please follow these steps to set 
   First, fork the repository (https://github.com/saucelabs/sauce-api-mcp) to your own GitHub account. Then, clone your fork to your local
   machine:
 
-       > git clone https://github.com/YOUR_USERNAME/your-project.git
-       > cd your-project
+       > git clone https://github.com/saucelabs/sauce-api-mcp.git
+       > cd sauce-api-mcp
 
 ## Create a Virtual Environment
 
 We strongly recommend using a virtual environment to manage project dependencies. This isolates your project's packages from your global
 Python installation.
-
-
 
     # Create a virtual environment
     python3 -m venv .venv
@@ -60,8 +58,6 @@ With your virtual environment activated, install the required dependencies, incl
 
     git checkout -b my-awesome-feature
 
-
-
 ### Make Your Changes
     
 Write your code and add or update tests as needed.
@@ -81,10 +77,9 @@ Use a clear and descriptive commit message.
 Go to the original repository on GitHub and open a pull request. Provide a clear description of your changes, why they
 are needed, and link to any relevant issues.
 
-
 # 🤝 Code of Conduct
 
-We are committed to fostering an open and welcoming environment. Please review and adhere to our **Code of Conduct** (CODE_OF_CONDUCT.md).
+We are committed to fostering an open and welcoming environment. Please review and adhere to our **Code of Conduct**.
 
 #  📜 Licensing
 

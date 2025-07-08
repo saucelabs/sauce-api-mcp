@@ -1,6 +1,8 @@
 # Sauce Labs MCP Server
 
-A Model Context Protocol (MCP) server that provides comprehensive integration with Sauce Labs testing platform. This server enables AI assistants to interact with Sauce Labs' device cloud, manage test jobs, analyze builds, and monitor testing infrastructure directly through natural language conversations.
+A Model Context Protocol (MCP) server that provides comprehensive integration with Sauce Labs testing platform. This 
+server enables AI assistants (LLM clients) to interact with Sauce Labs' device cloud, manage test jobs, analyze builds, 
+and monitor testing infrastructure directly through natural language conversations.
 
 ## Features
 
@@ -20,6 +22,9 @@ A Model Context Protocol (MCP) server that provides comprehensive integration wi
 
 ## Installation
 
+In all instances, you'll need to rename `start_server.sh.template` to `start_server.sh`, and replace the `/path/to/sauce-api-mcp`
+to the correct absolute path in your environment.
+
 ### Prerequisites
 - Python 3.8+
 - Sauce Labs account with API access
@@ -30,8 +35,8 @@ A Model Context Protocol (MCP) server that provides comprehensive integration wi
 1. **Install the MCP server**:
    ```bash
    # Clone the repository
-   git clone https://github.com/your-org/sauce-mcp-server.git
-   cd sauce-mcp-server
+   git clone https://github.com/saucelabs/sauce-api-mcp.git
+   cd sauce-api-mcp
    
    # Install dependencies
    pip install -e .
@@ -49,7 +54,7 @@ A Model Context Protocol (MCP) server that provides comprehensive integration wi
       "mcpServers": {
         "sauce-labs": {
         "command": "python",
-        "args": ["/path/to/sauce-mcp-server/src/main.py"],
+        "args": ["/path/to/sauce-api-mcp/src/main.py"],
           "env": {
             "SAUCE_USERNAME": "your-sauce-username",
             "SAUCE_ACCESS_KEY": "your-sauce-access-key"
@@ -66,8 +71,8 @@ A Model Context Protocol (MCP) server that provides comprehensive integration wi
 1. **Install the MCP server**:
     ```cmd
     # Clone the repository
-    git clone https://github.com/your-org/sauce-mcp-server.git
-    cd sauce-mcp-server
+    git clone https://github.com/saucelabs/sauce-api-mcp.git
+    cd sauce-api-mcp.git
 
     # Install dependencies
     pip install -e . 
@@ -84,7 +89,7 @@ notepad %APPDATA%\Claude\claude_desktop_config.json
       "mcpServers": {
         "sauce-labs": {
         "command": "python",
-        "args": ["/path/to/sauce-mcp-server/src/main.py"],
+        "args": ["/path/to/sauce-api-mcp/src/main.py"],
           "env": {
             "SAUCE_USERNAME": "your-sauce-username", 
             "SAUCE_ACCESS_KEY": "your-sauce-access-key"
@@ -109,8 +114,8 @@ Claude Code allows you to use the Sauce Labs MCP server directly from your termi
 2. Install the Sauce Labs MCP server:
 
 bash# Clone and install the MCP server
-git clone https://github.com/your-org/sauce-mcp-server.git
-cd sauce-mcp-server
+git clone https://github.com/saucelabs/sauce-api-mcp.git
+cd sauce-api-mcp
 pip install -e .
 
 3. Configure LLM Client:
@@ -126,7 +131,7 @@ Add the Sauce Labs MCP server configuration:
 json{
   "mcpServers": {
     "sauce-labs": {
-      "command": "sauce-mcp-server",
+      "command": "sauce-api-mcp.git",
       "env": {
         "SAUCE_USERNAME": "your-sauce-username",
         "SAUCE_ACCESS_KEY": "your-sauce-access-key"
