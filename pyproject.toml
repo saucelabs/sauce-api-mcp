@@ -9,7 +9,7 @@ description = "An MCP server for Sauce Labs APIs"
 authors = [{name = "Marcus Merrell", email = "marcus.merrell@saucelabs.com"}]
 license = {text = "MIT"}
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 dependencies = [
     "httpx>=0.24.0",
     "mcp>=1.10.1",
