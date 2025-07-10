@@ -14,8 +14,6 @@ def mock_sauce_server():
 
 
 class TestSauceServer:
-    """Test the SauceServer class."""
-    
     @pytest.mark.asyncio
     async def test_get_account_info_success(self, mock_sauce_server):
         """Test successful account info retrieval."""
@@ -30,25 +28,6 @@ class TestSauceServer:
         assert "username" in result
         assert result["username"] == "test_user"
 
-
-class TestSauceServer:
-    """Test the SauceServer class."""
-    
-    @pytest.mark.asyncio
-    async def test_get_account_info_success(self, mock_sauce_server):
-        """Test successful account info retrieval."""
-        # Mock the API response
-        mock_response = httpx.Response(
-            200,
-            json={"username": "test_user", "minutes": 1000}
-        )
-        
-        with patch.object(mock_sauce_server, 'sauce_api_call', return_value=mock_response.json()):
-            result = await mock_sauce_server.get_account_info()
-            
-        assert "username" in result
-        assert result["username"] == "test_user"
-    
     @pytest.mark.asyncio
     async def test_get_recent_jobs_with_limit(self, mock_sauce_server):
         pass
