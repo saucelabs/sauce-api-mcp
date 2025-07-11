@@ -7,7 +7,7 @@ import sys
 import logging
 from urllib.parse import urlencode
 
-from .models import (
+from models import (
     AccountInfo,
     LookupUsers,
     LookupServiceAccounts,
@@ -1016,8 +1016,22 @@ class SauceLabsAgent:
         data = response.json()
         return data
 
+# If run directly from a TTY, this server could be compromised (STDIO hijacking, etc)
+def check_stdio_is_not_tty():
+    """
+    Checks if stdin, stdout, and stderr are not connected to a TTY.
+    Returns True if safe, False otherwise.
+    """
+    if sys.stdin.isatty() or sys.stdout.isatty() or sys.stderr.isatty():
+        print("Error: This server is not meant to be run interactively.", file=sys.stderr)
+        return False
+    return True
+
 # --- Main Application Setup ---
 if __name__ == "__main__":
+    if not check_stdio_is_not_tty():
+        sys.exit(1)
+
     # Create the FastMCP server instance
     mcp_server_instance = FastMCP("SauceLabsAgent")
 
