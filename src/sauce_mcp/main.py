@@ -15,6 +15,12 @@ from models import (
     ErrorResponse
 )
 
+DATA_CENTERS = {
+    "US_WEST": "https://api.us-west-1.saucelabs.com/",
+    "US_EAST": "https://api.us-east-4.saucelabs.com/",
+    "EU_CENTRAL": "https://api.eu-central-1.saucelabs.com/",
+}
+
 logging.basicConfig(
     level=logging.INFO,
     stream=sys.stderr,
@@ -27,13 +33,25 @@ class SauceLabsAgent:
         mcp_server: FastMCP,
         access_key: str,
         username: str,
-        data_center: str = "us-west-1"
+        region: str = "US_WEST",
     ):
+
         self.mcp = mcp_server
 
         self.username = username
         auth = httpx.BasicAuth(username, access_key)
-        base_url = f"https://api.{data_center}.saucelabs.com/"
+
+        base_url = ""
+        if region.upper() == "STAGING":
+            base_url = os.getenv("SAUCE_STAGING_URL")
+            if not base_url:
+                raise ValueError(
+                    "Region is 'STAGING', but the URL has not been set."
+                )
+        else:
+            # Fallback to the dictionary for all other regions
+            base_url = DATA_CENTERS[region]
+
         self.client = httpx.AsyncClient(base_url=base_url, auth=auth)
 
         ## Resources
@@ -56,6 +74,7 @@ class SauceLabsAgent:
         self.mcp.tool()(self.get_job_details)
         self.mcp.tool()(self.get_test_assets)
         self.mcp.tool()(self.get_log_json_file)
+        self.mcp.tool()(self.get_network_har_file)
 
         ### Builds
         self.mcp.tool()(self.get_build_for_job)
@@ -70,7 +89,6 @@ class SauceLabsAgent:
         self.mcp.tool()(self.get_current_jobs_for_tunnel)
 
         ### Storage
-        self.mcp.tool()(self.get_storage_files)
         self.mcp.tool()(self.get_storage_groups)
         self.mcp.tool()(self.get_storage_groups_settings)
 
@@ -390,6 +408,10 @@ class SauceLabsAgent:
         if isinstance(response, httpx.Response):
             if response.status_code == 200:
                 return response.json()
+            elif response.status_code == 401:
+                return {
+                    "error": f"User not recognized. Please ensure SAUCE_USERNAME and SAUCE_ACCESS_KEY are set",
+                }
             elif response.status_code == 404:
                 return {
                     "error": f"Assets not found for job: {job_id}",
@@ -434,6 +456,7 @@ class SauceLabsAgent:
                 return {"error": f"Failed to get logs: {response.status_code}"}
         return {"error": "Invalid response type"}
 
+    # Not published in v1
     async def get_selenium_log_file(self, job_id: str) -> Union[str, Dict[str, str]]:
         """
         Shows the complete log of a Sauce Labs test, in unstructured raw format.
@@ -444,6 +467,7 @@ class SauceLabsAgent:
             return response.json()
         return response
 
+    # Not published in v1
     async def get_network_har_file(self, job_id: str) -> Dict[str, str]:
         """
         Returns the HAR file of network traffic gathered during the test, in structured json format.
@@ -454,6 +478,7 @@ class SauceLabsAgent:
             return response.json()
         return response
 
+    # Not published in v1
     async def get_performance_json_file(self, job_id: str) -> Dict[str, str]:
         """
         Returns the Performance log of the test, in structured json format.
@@ -991,6 +1016,7 @@ class SauceLabsAgent:
         return {"devices": data}
 
     ################################## Storage endpoints
+    # Not published as of v1
     async def get_storage_files(self) -> Dict[str, Any]:
         """
         Returns the set of files that have been uploaded to Sauce Storage by the requestor.
@@ -1045,7 +1071,11 @@ if __name__ == "__main__":
     if SAUCE_USERNAME is None:
         raise ValueError("SAUCE_USERNAME environment variable is not set.")
 
-    sauce_agent = SauceLabsAgent(mcp_server_instance, SAUCE_ACCESS_KEY, SAUCE_USERNAME)
+    SAUCE_REGION = os.getenv("SAUCE_REGION")
+    if SAUCE_REGION is None:
+        SAUCE_REGION = "US_WEST"
+
+    sauce_agent = SauceLabsAgent(mcp_server_instance, SAUCE_ACCESS_KEY, SAUCE_USERNAME, SAUCE_REGION)
 
     # Run the FastMCP server instance
     mcp_server_instance.run(transport="stdio")
