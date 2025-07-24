@@ -104,10 +104,18 @@ class SauceLabsAgent:
 
     # Not exposed to the Agent
     async def sauce_api_call(
-        self, relative_endpoint: str, method: str = "GET"
+            self, relative_endpoint: str, method: str = "GET", params: Optional[dict] = None
     ) -> Union[httpx.Response, dict[str, str]]:
         try:
-            response = await self.client.request(method, relative_endpoint)
+            # Always add the ai parameter
+            all_params = params or {}
+            all_params['ai'] = 'mcp'
+
+            response = await self.client.request(
+                method,
+                relative_endpoint,
+                params=all_params
+            )
             response.raise_for_status()
             return response
 
@@ -148,7 +156,8 @@ class SauceLabsAgent:
         Refer to `SauceAPI.resource_manifest['account']['methods']['get_account_info']` for full documentation.
         """
         response = await self.sauce_api_call(
-            f"team-management/v1/users?username={self.username}"
+            f"team-management/v1/users",
+            params={"username": self.username}
         )
 
         if isinstance(response, httpx.Response):
@@ -186,10 +195,9 @@ class SauceLabsAgent:
         if name:
             params["name"] = name
 
-        query_string = "&".join([f'{key}={value}' for key, value in params.items()])
-
         response = await self.sauce_api_call(
-            f"team-management/v1/teams?{query_string}"
+            f"team-management/v1/teams",
+            params=params
         )
         if isinstance(response, httpx.Response):
             return LookupTeamsResponse.model_validate(response.json())
@@ -274,9 +282,10 @@ class SauceLabsAgent:
         if offset:
             params["offset"] = offset
 
-        query_string = "&".join([f'{key}={value}' for key, value in params.items()])
-
-        response = await self.sauce_api_call(f"team-management/v1/users/?{query_string}")
+        response = await self.sauce_api_call(
+            "team-management/v1/users",  # Clean endpoint without query string
+            params=params  # Pass parameters as dict
+        )
         return LookupUsers.model_validate(response.json())
 
     async def get_user(self, id: str) -> Dict[str, Any]:
@@ -340,9 +349,7 @@ class SauceLabsAgent:
         if offset:
             params["offset"] = offset
 
-        query_string = "&".join([f'{key}={value}' for key, value in params.items()])
-
-        response = await self.sauce_api_call(f"team-management/v1/service-accounts/?{query_string}")
+        response = await self.sauce_api_call(f"team-management/v1/service-accounts", params=params)
         return LookupServiceAccounts.model_validate(response.json())
 
     async def get_service_account(self, id: str) -> Dict[str, Any]:
@@ -386,7 +393,7 @@ class SauceLabsAgent:
                 f"Asset '{asset_key}' not found in job {job_id}. Available assets: {list(asset_list.keys())}")
 
         if isinstance(asset_url, str):
-            return f"rest/v1/{self.username}/jobs/{job_id}/assets/" + asset_url
+            return f"rest/v1/{self.username}/jobs/{job_id}/assets/{asset_url}"
         raise ValueError(f"Asset must be string, {asset_key} is type {type(asset_url)}")
 
     # This is exposed to the Agent in case the user wants to see the links that will click through to the Sauce UI
@@ -540,7 +547,8 @@ class SauceLabsAgent:
         :param limit: The upper limit (integer) of jobs to retrieve. Max is 100
         """
         response = await self.sauce_api_call(
-            f"rest/v1/{self.username}/jobs?limit={limit}"
+            f"rest/v1/{self.username}/jobs",
+            params={"limit": limit}
         )
         if isinstance(response, httpx.Response):
             jobs = response.json()
@@ -611,19 +619,14 @@ class SauceLabsAgent:
         if sort:
             params["sort"] = sort
 
-        # This will handle the wonky List of strings
-        formatted_params = []
-        for key, value in params.items():
-            if isinstance(value, list):
-                for item in value:
-                    formatted_params.append((key, item))
-            else:
-                formatted_params.append((key, value))
-
-        query_string = urlencode(formatted_params)
         try:
-            response = await self.sauce_api_call(f"v2/builds/{build_source}/?{query_string}")
-            return response.json()
+            response = await self.sauce_api_call(f"v2/builds/{build_source}/", params=params)
+
+            if isinstance(response, dict):
+                return response
+            else:
+                return response.json()
+
         except Exception as e:
             # Check if it's a timestamp-related error
             if ('end' in params and 'start' not in params) or ('start' in params and 'end' not in params):
@@ -765,10 +768,8 @@ class SauceLabsAgent:
         if faulty is not None:
             params["faulty"] = faulty
 
-        query_string = "&".join([f'{key}={value}' for key, value in params.items()])
-
         response = await self.sauce_api_call(
-            f"v2/builds/{build_source}/{build_id}/jobs/?{query_string}"
+            f"v2/builds/{build_source}/{build_id}/jobs/", params=params
         )
         if isinstance(response, httpx.Response):
             if response.status_code == 200:
@@ -953,7 +954,8 @@ class SauceLabsAgent:
         :param offset: Limit results to those following this index number. Defaults to 1.
         :param type: Filter results to show manual tests only with LIVE.
         """
-        response = await self.sauce_api_call(f"v1/rdc/jobs?limit={limit}&offset={offset}")
+        response = await self.sauce_api_call(f"v1/rdc/jobs",
+             params={"limit": limit, "offset": offset})
         data = response.json()
         return data
 
