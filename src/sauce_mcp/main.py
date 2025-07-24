@@ -42,11 +42,11 @@ class SauceLabsAgent:
         auth = httpx.BasicAuth(username, access_key)
 
         base_url = ""
-        if region.upper() == "STAGING":
-            base_url = os.getenv("SAUCE_STAGING_URL")
+        if region.upper() == "OTHER":
+            base_url = os.getenv("ALTERNATE_URL")
             if not base_url:
                 raise ValueError(
-                    "Region is 'STAGING', but the URL has not been set."
+                    "Region is 'OTHER', but the URL has not been set."
                 )
         else:
             # Fallback to the dictionary for all other regions
