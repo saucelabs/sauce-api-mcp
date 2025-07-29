@@ -2,9 +2,17 @@
 
 [//]: # (mcp-name: io.github.saucelabs-sample-test-frameworks/sauce-api-mcp)
 
-A Model Context Protocol (MCP) server that provides comprehensive integration with Sauce Labs testing platform. This 
-server enables AI assistants (LLM clients) to interact with Sauce Labs' device cloud, manage test jobs, analyze builds, 
-and monitor testing infrastructure directly through natural language conversations.
+A Model Context Protocol (MCP) server that provides comprehensive integration with Sauce Labs testing platform. This package includes two complementary MCP servers enabling AI assistants (LLM clients) to interact with Sauce Labs' device cloud, manage test jobs, analyze builds, and monitor testing infrastructure directly through natural language conversations.
+
+## Servers
+
+This package provides two separate MCP servers optimized for different use cases:
+
+**sauce-api-mcp** (Core Server) - Full Sauce Labs API integration for account management, device discovery, job analysis, builds, storage, and tunnels.
+
+**sauce-api-mcp-rdc** (RDC OpenAPI Server) - Real Device Cloud (RDC) focused server with automated OpenAPI schema discovery and optimized for mobile device testing workflows.
+
+Both servers can be configured simultaneously in your LLM client for comprehensive Sauce Labs integration.
 
 ## Features
 
@@ -21,144 +29,265 @@ and monitor testing infrastructure directly through natural language conversatio
 - **Cross-platform Testing**: Support for both Virtual Device Cloud (VDC) and Real Device Cloud (RDC)
 - **Test Analytics**: Detailed job information including logs, videos, and performance metrics
 - **Team Collaboration**: Multi-team support with proper access controls
+- **RDC OpenAPI Integration**: Dynamic API discovery for Real Device Cloud endpoints (sauce-api-mcp-rdc)
 
-### Prerequisites
-- Python 3.9+
+## Prerequisites
+- Python 3.10+
 - `pip`
 - Sauce Labs account with API access
 - Gemini CLI, Claude Desktop, Goose, or other LLM Client
 
 ### For Claude Desktop (Mac/Linux) or Gemini CLI 
 
-1. **Install the MCP server and download the launch script**:
+Install the package from PyPI:
 
-    ```bash
-    pip install sauce-api-mcp
-   
-    curl -o ~/sauce-mcp-launcher.sh https://raw.githubusercontent.com/saucelabs/sauce-api-mcp/refs/heads/main/sauce-mcp-launcher.sh
-    chmod +x ~/sauce-mcp-launcher.sh
-    ```
- 
-2. **Configure the LLM Client (Claude, Gemini, etc)**:
+```bash
+pip install sauce-api-mcp
+```
 
-    For the client you're using you'll need to edit the config file. The location is slightly different for each, 
-    so here are some popular ones:
+This will install both servers and make their command-line entry points available:
+- `sauce-api-mcp` (core server)
+- `sauce-api-mcp-rdc` (RDC OpenAPI server)
 
-***Claude***
+Verify installation:
 
-    `~/Library/Application\ Support/Claude/claude_desktop_config.json`
+```bash
+which sauce-api-mcp
+which sauce-api-mcp-rdc
+```
 
-***Gemini CLI***
+## Configuration for LLM Clients
 
-   `~/.gemini/settings.json`
+### Claude Desktop (Mac/Linux/Windows)
 
-3. **Add the Sauce Labs MCP server configuration**:
+1. Locate your Claude Desktop config file:
+   - **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+   - **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+   - **Linux**: `~/.config/Claude/claude_desktop_config.json`
 
-    ```json
-    {
-      "mcpServers": {
-        "sauce-labs": {
-        "command": "/path/to/tmp/sauce-mcp-launcher.sh",
-          "env": {
-            "SAUCE_USERNAME": "your-sauce-username",
-            "SAUCE_ACCESS_KEY": "your-sauce-access-key"
-          }
-        }
-      }
-    }
-    ```
- 
-   The sauce-mcp-launcher.sh script is mostly for locating the python executable in  linux environment. If you have the 
-   sauce-api-mcp pypi library installed, you can invoke the library directly via `#exec $PYTHON_CMD -m sauce_api_mcp "$@"`.
-
-   ***Note: if you configure SAUCE_USERNAME and SAUCE_ACCESS_KEY as environment variables, you won't need to add them to the config block. 
-
-4. **Restart the client to load the new MCP server.**
-
-#### [Goose](https://block.github.io/goose/)
-
-First, install the MCP Server from `pip`, and download the launch script:
-
+2. Find your Python installation's bin directory:
    ```bash
-       pip install sauce-api-mcp
-      
-       curl -o ~/sauce-mcp-launcher.sh https://raw.githubusercontent.com/saucelabs/sauce-api-mcp/refs/heads/main/sauce-mcp-launcher.sh
-       chmod +x ~/sauce-mcp-launcher.sh
+   python3 -c "import sys; print(sys.prefix + '/bin')"
+   ```
+   
+   On macOS with system Python, this is typically:
+   ```
+   /Library/Frameworks/Python.framework/Versions/3.12/bin
    ```
 
-Within your `~/.config/goose/config.yaml` file, add the following extension:
+3. Add both servers to your config using the full paths from step 2:
+   ```json
+   {
+     "mcpServers": {
+       "sauce-api-mcp-core": {
+         "command": "/path/to/bin/sauce-api-mcp",
+         "env": {
+           "SAUCE_USERNAME": "your-sauce-username",
+           "SAUCE_ACCESS_KEY": "your-sauce-access-key"
+         }
+       },
+       "sauce-api-mcp-rdc": {
+         "command": "/path/to/bin/sauce-api-mcp-rdc",
+         "env": {
+           "SAUCE_USERNAME": "your-sauce-username",
+           "SAUCE_ACCESS_KEY": "your-sauce-access-key"
+         }
+       }
+     }
+   }
+   ```
 
-  ```bash
-  sauce-api-mcp:
-    args: []
-    bundled: null
-    cmd: /<path>/sauce-mcp-launcher.sh
-    description: Sauce Labs MCP for API
-    enabled: true
-    env_keys: []
-    envs: {}
-    name: sauce-api-mcp
-    timeout: 10
-    type: stdio
+4. Restart the client to load the servers.
+
+### Gemini CLI
+
+Add to `~/.gemini/settings.json`:
+
+```json
+{
+  "mcpServers": {
+    "sauce-api-mcp-core": {
+      "command": "/path/to/bin/sauce-api-mcp",
+      "env": {
+        "SAUCE_USERNAME": "your-sauce-username",
+        "SAUCE_ACCESS_KEY": "your-sauce-access-key"
+      }
+    }
+  }
+}
 ```
-Be sure to edit the <path> to reflect your launch script location.
 
-#### Now you can ask questions like:
+### Goose
+
+Add to `~/.config/goose/config.yaml`:
+
+```yaml
+sauce-api-mcp-core:
+  cmd: /path/to/bin/sauce-api-mcp
+  description: Sauce Labs MCP (Core)
+  enabled: true
+  envs:
+    SAUCE_USERNAME: your-sauce-username
+    SAUCE_ACCESS_KEY: your-sauce-access-key
+  type: stdio
+
+sauce-api-mcp-rdc:
+  cmd: /path/to/bin/sauce-api-mcp-rdc
+  description: Sauce Labs MCP (RDC)
+  enabled: true
+  envs:
+    SAUCE_USERNAME: your-sauce-username
+    SAUCE_ACCESS_KEY: your-sauce-access-key
+  type: stdio
+```
+
+### Environment Variables (Alternative)
+
+Instead of adding credentials to config files, you can set them as environment variables:
+
+```bash
+export SAUCE_USERNAME="your-sauce-username"
+export SAUCE_ACCESS_KEY="your-sauce-access-key"
+```
+
+Then omit the `env` block from your config. Both servers will automatically use these environment variables.
+
+## Troubleshooting Installation
+
+### "Command not found: sauce-api-mcp"
+
+The entry point script isn't in your PATH. Verify installation and use the full path approach above:
+
+```bash
+python3 -m pip list | grep sauce-api-mcp
+python3 -c "import sys; print(sys.prefix + '/bin/sauce-api-mcp')"
+```
+
+### "ENOENT: no such file or directory" in MCP client
+
+The MCP client is using a different Python environment than where you installed the package. Solutions:
+
+1. **Use full absolute path** (recommended): Update your config to use the complete path shown by `python3 -c "import sys; print(sys.prefix + '/bin/sauce-api-mcp')"`, not just `which sauce-api-mcp`
+
+2. **Install in system Python**: If you're using a specific Python installation, ensure `pip install` uses that same Python
+
+3. **Alternative: Module invocation** (less reliable):
+   ```json
+   "command": "python3",
+   "args": ["-m", "sauce_api_mcp.main"]
+   ```
+
+## Development Setup
+
+### Prerequisites
+- Python 3.10+
+- `uv` package manager ([install uv](https://docs.astral.sh/uv/getting-started/installation/))
+- Git
+
+### Clone and Setup
+
+```bash
+git clone https://github.com/saucelabs/sauce-api-mcp.git
+cd sauce-api-mcp
+uv sync
+```
+
+This creates a virtual environment and installs all dependencies in editable mode.
+
+### Project Structure
+
+```
+sauce-api-mcp/
+├── src/sauce_api_mcp/
+│   ├── __init__.py
+│   ├── main.py              # Core server entry point
+│   ├── rdc_openapi.py       # RDC OpenAPI server entry point
+│   └── shared/              # Shared utilities
+├── pyproject.toml           # Package configuration & entry points
+├── uv.lock                  # Locked dependencies
+└── README.md
+```
+
+### Entry Points
+
+The `pyproject.toml` defines two console scripts:
+
+```toml
+[project.scripts]
+sauce-api-mcp = "sauce_api_mcp.main:main"
+sauce-api-mcp-rdc = "sauce_api_mcp.rdc_openapi:main"
+```
+
+When you run `uv sync`, these become available as commands in the virtual environment.
+
+### Development Workflow
+
+1. **Activate the virtual environment** (optional, `uv` commands work without it):
+   ```bash
+   source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+   ```
+
+2. **Run the servers locally** (for testing):
+   ```bash
+   uv run sauce-api-mcp
+   uv run sauce-api-mcp-rdc
+   ```
+
+   Both will output: `Error: This server is not meant to be run interactively` — this is correct behavior (they're meant to be called by MCP clients).
+
+3. **Run with environment variables**:
+   ```bash
+   SAUCE_USERNAME=user SAUCE_ACCESS_KEY=key uv run sauce-api-mcp
+   ```
+
+4. **Test with your MCP client**:
+   ```json
+   {
+     "command": "/path/to/sauce-api-mcp/.venv/bin/sauce-api-mcp"
+   }
+   ```
+
+### Running Tests
+
+```bash
+uv run pytest
+uv run pytest -v  # Verbose
+uv run pytest src/sauce_api_mcp/tests/test_main.py  # Specific test
+```
+
+### Adding Dependencies
+
+```bash
+uv add httpx
+uv add --dev pytest-asyncio
+```
+
+## Now you can ask questions like:
+
 * "Show me my recent test failures"
 * "Find available iPhone devices for testing"
 * "Analyze the performance of my latest build"
 
-## Configuration ##
-### Required Environment Variables ###
-- SAUCE_USERNAME: Your Sauce Labs username
-- SAUCE_ACCESS_KEY: Your Sauce Labs access key (found in Account Settings)
+## Configuration
 
-### Optional Configuration ###
+### Required Environment Variables
 
-SAUCE_REGION: Sauce Labs data center region (default: us-west-1)
+- **SAUCE_USERNAME**: Your Sauce Labs username
+- **SAUCE_ACCESS_KEY**: Your Sauce Labs access key (found in Account Settings)
 
-# Getting Your Sauce Labs Credentials #
+### Optional Configuration
+
+- **SAUCE_REGION**: Sauce Labs data center region (default: us-west-1)
+
+## Getting Your Sauce Labs Credentials
 
 1. Log into your Sauce Labs account
 2. Navigate to Account → User Settings
 3. Copy your Username and Access Key
-4. Add these to your Claude Desktop configuration
-
-### Usage Examples ###
-Once configured, you can interact with Sauce Labs through natural language in Claude Desktop:
-#### Device Management
-
-```
-"Show me all available iPhone devices"
-"What Android devices are currently in use?"
-"Find me a Samsung Galaxy S24 for testing"
-```
-#### Test Job Analysis
-```
-"Show me my recent test jobs"
-"Analyze the failed tests from my last build"
-"Get details about job ID abc123def456"
-```
-#### Build Monitoring
-```
-"What's the status of my latest build?"
-"Show me all builds from this week"
-"Find builds that have failed tests"
-```
-#### Storage Management
-```
-"List my uploaded apps"
-"Show me app storage usage"
-"Find the iOS demo app"
-```
-#### Team Collaboration
-```
-"Who's on my testing team?"
-"Show me team device allocations"
-"List all users in my organization"
-```
+4. Add these to your Claude Desktop configuration (or set as environment variables)
 
 ## Available Tools
+
 ### Account & Organization
 
 * **get_account_info** - Retrieve current user account information
@@ -199,87 +328,95 @@ Once configured, you can interact with Sauce Labs through natural language in Cl
 * **get_tunnels_for_user** - List active Sauce Connect tunnels
 * **get_tunnel_information** - Get details about a specific tunnel
 * **get_current_jobs_for_tunnel** - See jobs using a specific tunnel
-* 
+
 ### Test Assets
 
 * **get_test_assets** - Retrieve test artifacts (logs, videos, screenshots)
 * **get_log_json_file** - Get structured test execution logs
 
+## Contributing
+
+We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
 ## Troubleshooting
-### Common Issues
 
 ### "MCP server not found"
 
-Ensure the path to the MCP server executable is correct
-Verify Python is installed and accessible
-Check that all dependencies are installed
+Ensure the path to the MCP server executable is correct in your config file. For full paths, run:
+```bash
+python3 -c "import sys; print(sys.prefix + '/bin')"
+```
+
+Verify Python is installed and accessible. Check that all dependencies are installed:
+```bash
+python3 -m pip list | grep sauce-api-mcp
+```
 
 ### "Authentication failed"
 
-Verify your SAUCE_USERNAME and SAUCE_ACCESS_KEY are correct
-Ensure credentials have proper permissions for the requested operations
-Check that your Sauce Labs account is active
+Verify your SAUCE_USERNAME and SAUCE_ACCESS_KEY are correct. Ensure credentials have proper permissions for the requested operations. Check that your Sauce Labs account is active.
 
 ### "No devices found"
 
-Verify your account has access to the device cloud
-Check your team's device allocation settings
-Ensure you're querying the correct data center region
+Verify your account has access to the device cloud. Check your team's device allocation settings. Ensure you're querying the correct data center region (set SAUCE_REGION if needed).
 
 ### "Job not found"
 
-Verify the job ID is correct and belongs to your account
-Check if the job is from VDC vs RDC (different endpoints)
-Ensure the job hasn't expired due to retention policies
+Verify the job ID is correct and belongs to your account. Check if the job is from VDC vs RDC (different endpoints). Ensure the job hasn't expired due to retention policies.
 
 ## Getting Help
 
-- Sauce Labs Documentation: docs.saucelabs.com
-- API Reference: docs.saucelabs.com/dev/api
+- Sauce Labs Documentation: [docs.saucelabs.com](https://docs.saucelabs.com)
+- API Reference: [docs.saucelabs.com/dev/api](https://docs.saucelabs.com/dev/api)
 - Support: Contact Sauce Labs support through your account dashboard
+- GitHub Issues: [Report bugs or request features](https://github.com/saucelabs/sauce-api-mcp/issues)
 
-# License
+## License
 
-Apache 2.0 (versions 2.0+)
+Apache 2.0 (versions 1.1.0+)
+
 Note: Versions prior to 1.0.3 were released under MIT License.
 
-# Roadmap
+## Roadmap
 
-This roadmap outlines our vision and priorities for the project. It's a living document, and we welcome feedback and contributions from the
-community! While we aim to follow this plan, priorities can change based on user feedback and new opportunities.
+This roadmap outlines our vision and priorities for the project. It's a living document, and we welcome feedback and contributions from the community! While we aim to follow this plan, priorities can change based on user feedback and new opportunities.
 
-Want to help? We'd love to have you!
+### Short-Term (Next 1-3 Months)
 
-* Check out our **CONTRIBUTING.md** (CONTRIBUTING.md) guide.
-* Find an existing issue in our **Issue Tracker** (../issues) that interests you.
-* Have a new idea? **Open a new issue** (../issues/new/choose) to discuss it with us.
+**Resources & Tools - Optimizing Model Calls**
+- Implement Resources comprehensively for model responses
+- Reduce latency and cost by returning cached results instead of new API calls
+- Auto-converting linux time stamps to de-risk incorrect LLM conversions
+- Status: Planning
 
-## Short-Term (Next 1-3 Months)
-Our immediate focus is on enhancing the core developer experience and improving context management.
+### Mid-Term (3-6 Months)
 
-## Resources & Tools - Optimizing Model Calls
-* Description: Implement Resources comprehensively for model responses. For some prompts, this will reduce latency and cost by returning a
-cached result instead of making a new API call.
-* Status: Planning
+- Add new API endpoints as Sauce Labs platform evolves
+- Improve overall interaction with LLM clients
+- Maintain alignment with Sauce Labs API updates
+- Add support for new Sauce Labs product lines
 
-## Mid-Term (3-6 Months)
+## Changelog
 
-We plan to focus on adding API endpoints and improving overall interaction with the LLM. We will also maintain the Server to keep up with changes to 
-the Sauce Labs API, and to add new product lines as they are introduced.
+### v1.1.0
+- Merged sauce-api-mcp and sauce-labs-mcp (RDC OpenAPI) into single monorepo package
+- Added sauce-api-mcp-rdc entry point for RDC-focused server
+- Updated to use full Python entry points instead of launcher scripts
+- Improved installation and configuration documentation
+- Locked dependencies with uv.lock for reproducible installs
 
-# Changelog
-## v1.0.3
-- Updated to use Apache License 2.0, rather than MIT
-- Slight tweaks to README
+### v1.0.3
+- Updated to use Apache License 2.0 (previously MIT)
+- Minor README improvements
 
-## v1.0.2
-- Sending details to official MCP Registry
-- Adding Python 3.9 support
+### v1.0.2
+- Submitted to official MCP Registry
+- Added Python 3.9 support
 
-## v1.0.1
-- Overhauled and updated the README for better install instructions
+### v1.0.1
+- Overhauled and updated README with better install instructions
 
-## v1.0.0
+### v1.0.0
 - Initial release with full Sauce Labs API integration
 - Support for VDC and RDC platforms
 - Comprehensive device management
@@ -288,37 +425,28 @@ the Sauce Labs API, and to add new product lines as they are introduced.
 
 **Made with ❤️ for the testing community**
 
-# Disclaimer of Warranties
+## Disclaimer of Warranties
 
-THIS SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE 
-WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR 
-COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR 
-OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+THIS SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-# Limitation of Liability
+## Limitation of Liability
 
-IN NO EVENT SHALL SAUCE LABS, INC. BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL 
-DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR 
-BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT 
-(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
-POSSIBILITY OF SUCH DAMAGE.
+IN NO EVENT SHALL SAUCE LABS, INC. BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-# General Use
+## General Use
 
-The MCP Server is provided as a free and open-source tool to facilitate interaction with publicly available APIs. Users 
-are free to modify and distribute the software under the terms of the Apache License 2.0.
+The MCP Server is provided as a free and open-source tool to facilitate interaction with publicly available APIs. Users are free to modify and distribute the software under the terms of the Apache License 2.0.
 
-By using this software, you acknowledge that you are doing so at your own risk and that you are responsible for your 
-own compliance with all applicable laws and regulations.
+By using this software, you acknowledge that you are doing so at your own risk and that you are responsible for your own compliance with all applicable laws and regulations.
 
-# Indemnification
+## Indemnification
 
-You agree to indemnify and hold harmless Sauce Labs, inc. ("Sauce Labs"), its officers, directors, employees, and 
-agents from and against any and all claims, liabilities, damages, losses, or expenses, including reasonable attorneys' 
-fees and costs, arising out of or in any way connected with your access to or use of this software.
+You agree to indemnify and hold harmless Sauce Labs, inc. ("Sauce Labs"), its officers, directors, employees, and agents from and against any and all claims, liabilities, damages, losses, or expenses, including reasonable attorneys' fees and costs, arising out of or in any way connected with your access to or use of this software.
 
 This includes, but is not limited to:
 
-* **Your Interaction with Third-Party LLM Providers:** You acknowledge that this software utilizes publicly available APIs for interaction with a Large Language Model (LLM). You are solely responsible for your use of any third-party LLM services. This includes your adherence to the terms and conditions of the LLM provider and any costs associated with your use, such as token fees. Sauce Labs has no control over, and assumes no responsibility for, the content, privacy policies, or practices of any third-party LLM providers.
-* **Content Generated by the LLM:** You are solely responsible for the content generated, received, or transmitted through your use of the MCP Server and the underlying LLM. Sauce Labs does not endorse and has no control over the content of communications made by you or any third party through the server.
-* **Your Code and Modifications:** Any modifications, enhancements, or derivative works you create based on the MCP Server are your own, and you are solely responsible for their performance and any liabilities that may arise from their use.
+- **Your Interaction with Third-Party LLM Providers:** You acknowledge that this software utilizes publicly available APIs for interaction with a Large Language Model (LLM). You are solely responsible for your use of any third-party LLM services, including your adherence to the terms and conditions of the LLM provider and any costs associated with your use, such as token fees. Sauce Labs has no control over, and assumes no responsibility for, the content, privacy policies, or practices of any third-party LLM providers.
+
+- **Content Generated by the LLM:** You are solely responsible for the content generated, received, or transmitted through your use of the MCP Server and the underlying LLM. Sauce Labs does not endorse and has no control over the content of communications made by you or any third party through the server.
+
+- **Your Code and Modifications:** Any modifications, enhancements, or derivative works you create based on the MCP Server are your own, and you are solely responsible for their performance and any liabilities that may arise from their use.
