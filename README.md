@@ -54,7 +54,7 @@ to the correct absolute path in your environment.
       "mcpServers": {
         "sauce-labs": {
         "command": "python",
-        "args": ["/path/to/sauce-api-mcp/src/main.py"],
+        "args": ["/path/to/sauce-api-mcp/src/rdc_openapi.py"],
           "env": {
             "SAUCE_USERNAME": "your-sauce-username",
             "SAUCE_ACCESS_KEY": "your-sauce-access-key"
@@ -89,7 +89,7 @@ notepad %APPDATA%\Claude\claude_desktop_config.json
       "mcpServers": {
         "sauce-labs": {
         "command": "python",
-        "args": ["/path/to/sauce-api-mcp/src/main.py"],
+        "args": ["/path/to/sauce-api-mcp/src/rdc_openapi.py"],
           "env": {
             "SAUCE_USERNAME": "your-sauce-username", 
             "SAUCE_ACCESS_KEY": "your-sauce-access-key"

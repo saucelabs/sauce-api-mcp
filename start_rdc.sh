@@ -1,6 +1,6 @@
 #!/bin/bash
 
-cd /path/to/sauce-api-mcp/src/sauce_mcp
+cd /Users/marcusmerrell/Projects/sauce-api-mcp
 
 # Create virtual environment if it doesn't exist
 if [ ! -d "venv" ]; then
@@ -13,4 +13,4 @@ else
   source venv/bin/activate
 fi
 
-python -m sauce_mcp.main
+python -m sauce_mcp.rdc_openapi

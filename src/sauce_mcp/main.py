@@ -7,7 +7,7 @@ import sys
 import logging
 from urllib.parse import urlencode
 
-from models import (
+from .models import (
     AccountInfo,
     LookupUsers,
     LookupServiceAccounts,

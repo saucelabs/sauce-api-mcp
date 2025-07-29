@@ -1,11 +1,11 @@
-[system]
+[build-system]
 requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "sauce-labs-mcp"
 version = "0.1.0.dev1"
-description = "An MCP server for Sauce Labs APIs"
+description = "MCP servers for Sauce Labs APIs"
 authors = [{name = "Marcus Merrell", email = "marcus.merrell@saucelabs.com"}]
 license = {text = "MIT"}
 readme = "README.md"
@@ -13,7 +13,13 @@ requires-python = ">=3.10"
 dependencies = [
     "httpx>=0.24.0",
     "mcp>=1.10.1",
+    "pyyaml>=6.0",
+    "fastmcp",
 ]
+
+[project.scripts]
+sauce-mcp-core = "sauce_mcp.main:main"
+sauce-mcp-rdc-openapi = "sauce_mcp.rdc_openapi:main"
 
 [project.optional-dependencies]
 test = [
