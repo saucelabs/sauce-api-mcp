@@ -5,7 +5,6 @@ from typing import Dict, Any, Union, Optional, List  # For type hinting dicts
 import httpx
 import sys
 import logging
-from urllib.parse import urlencode
 
 from .models import (
     AccountInfo,
