@@ -1,0 +1,26 @@
+.idea/
+venv/
+test_env/
+.env
+
+__pycache__/
+*.pyc
+*.pyo
+.python-version
+.DS_Store
+
+# Build artifacts
+dist/
+build/
+*.egg-info/
+
+# Coverage
+.coverage
+coverage.xml
+htmlcov/
+
+# pytest
+.pytest_cache/
+
+# MyPy
+.mypy_cache/
