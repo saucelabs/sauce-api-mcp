@@ -71,7 +71,7 @@ class SauceLabsRDCAgent:
         try:
             # Always add the ai parameter
             all_params = params or {}
-            all_params['ai'] = 'mcp'
+            all_params['ai'] = 'rdc_mcp'
 
             response = await self.client.request(
                 method,
@@ -167,7 +167,6 @@ class SauceLabsRDCAgent:
 
         return response.json()
 
-
     async def list_device_sessions(
             self,
             state: Optional[str] = None,
@@ -201,6 +200,10 @@ class SauceLabsRDCAgent:
 
         response = await self.sauce_api_call("rdc/v2/sessions", params=params)
 
+        if isinstance(response, dict):
+            return response
+
+        # Handle httpx.Response object
         if response.status_code == 401:
             return {
                 "error": "Not authorized to access device sessions",
@@ -218,7 +221,6 @@ class SauceLabsRDCAgent:
 
         return response.json()
 
-
     async def get_session_details(self, sessionId: str) -> Dict[str, Any]:
         """
         Get details of a specific device session
@@ -227,6 +229,9 @@ class SauceLabsRDCAgent:
         """
 
         response = await self.sauce_api_call(f"rdc/v2/sessions/{sessionId}")
+
+        if isinstance(response, dict):
+            return response
 
         if response.status_code == 404:
             return {
@@ -280,6 +285,9 @@ class SauceLabsRDCAgent:
 
         endpoint = f"rdc/v2/sessions/{sessionId}/proxy/{targetHost}/{targetPort}/{targetPath}"
         response = await self.sauce_api_call(endpoint, method="GET")
+
+        if isinstance(response, dict):
+            return response
 
         if response.status_code == 400:
             # Try to determine if it's device state vs bad parameters
@@ -387,7 +395,10 @@ class SauceLabsRDCAgent:
         """
 
         endpoint = f"rdc/v2/sessions/{sessionId}/proxy/{targetHost}/{targetPort}/{targetPath}"
-        response = await self.sauce_api_call(endpoint, method="POST", json=data)
+        response = await self.sauce_api_call(endpoint, method="POST", params=data)
+
+        if isinstance(response, dict):
+            return response
 
         if response.status_code == 400:
             try:
@@ -446,7 +457,6 @@ class SauceLabsRDCAgent:
 
         return response.json()
 
-
     async def forward_http_put(
             self,
             sessionId: str,
@@ -459,7 +469,10 @@ class SauceLabsRDCAgent:
         Forward a single PUT request via a proxy running on the device.
         """
         endpoint = f"rdc/v2/sessions/{sessionId}/proxy/{targetHost}/{targetPort}/{targetPath}"
-        response = await self.sauce_api_call(endpoint, method="PUT", json=data)
+        response = await self.sauce_api_call(endpoint, method="PUT", params=data)
+
+        if isinstance(response, dict):
+            return response
 
         # Same error handling pattern as POST
         if response.status_code == 400:
@@ -503,6 +516,9 @@ class SauceLabsRDCAgent:
         endpoint = f"rdc/v2/sessions/{sessionId}/proxy/{targetHost}/{targetPort}/{targetPath}"
         response = await self.sauce_api_call(endpoint, method="DELETE")
 
+        if isinstance(response, dict):
+            return response
+
         # Same error handling as GET (no body data)
         if response.status_code == 400:
             try:
@@ -539,6 +555,9 @@ class SauceLabsRDCAgent:
         endpoint = f"rdc/v2/sessions/{sessionId}/proxy/{targetHost}/{targetPort}/{targetPath}"
         response = await self.sauce_api_call(endpoint, method="OPTIONS")
 
+        if isinstance(response, dict):
+            return response
+
         # Same error handling as GET
         if response.status_code == 400:
             try:
@@ -559,7 +578,6 @@ class SauceLabsRDCAgent:
 
         return response.json()
 
-
     async def forward_http_head(
             self,
             sessionId: str,
@@ -572,6 +590,9 @@ class SauceLabsRDCAgent:
         """
         endpoint = f"rdc/v2/sessions/{sessionId}/proxy/{targetHost}/{targetPort}/{targetPath}"
         response = await self.sauce_api_call(endpoint, method="HEAD")
+
+        if isinstance(response, dict):
+            return response
 
         # Same error handling as GET
         if response.status_code == 400:
@@ -626,7 +647,10 @@ class SauceLabsRDCAgent:
                 device_config["os"] = os.lower()
             data["device"] = device_config
 
-        response = await self.sauce_api_call("rdc/v2/sessions", method="POST", json=data)
+        response = await self.sauce_api_call("rdc/v2/sessions", method="POST", params=data)
+
+        if isinstance(response, dict):
+            return response
 
         if response.status_code == 400:
             try:
@@ -703,6 +727,9 @@ class SauceLabsRDCAgent:
             params["rebootDevice"] = str(rebootDevice).lower()
 
         response = await self.sauce_api_call(f"rdc/v2/sessions/{sessionId}", method="DELETE", params=params)
+
+        if isinstance(response, dict):
+            return response
 
         if response.status_code == 400:
             try:
@@ -795,7 +822,10 @@ class SauceLabsRDCAgent:
                 }
             data["features"] = features
 
-        response = await self.sauce_api_call(f"rdc/v2/sessions/{sessionId}/apps", method="POST", json=data)
+        response = await self.sauce_api_call(f"rdc/v2/sessions/{sessionId}/apps", method="POST", params=data)
+
+        if isinstance(response, dict):
+            return response
 
         if response.status_code == 400:
             try:
@@ -861,6 +891,9 @@ class SauceLabsRDCAgent:
         """
 
         response = await self.sauce_api_call(f"rdc/v2/sessions/{sessionId}/apps")
+
+        if isinstance(response, dict):
+            return response
 
         if response.status_code == 400:
             return {
@@ -930,7 +963,10 @@ class SauceLabsRDCAgent:
         if bundleId:
             data["bundleId"] = bundleId
 
-        response = await self.sauce_api_call(f"rdc/v2/sessions/{sessionId}/launch", method="POST", json=data)
+        response = await self.sauce_api_call(f"rdc/v2/sessions/{sessionId}/launch", method="POST", params=data)
+
+        if isinstance(response, dict):
+            return response
 
         if response.status_code == 400:
             try:
@@ -1012,7 +1048,10 @@ class SauceLabsRDCAgent:
                 ]
             }
 
-        response = await self.sauce_api_call(f"rdc/v2/sessions/{sessionId}/url", method="POST", json=data)
+        response = await self.sauce_api_call(f"rdc/v2/sessions/{sessionId}/url", method="POST", params=data)
+
+        if isinstance(response, dict):
+            return response
 
         if response.status_code == 400:
             try:

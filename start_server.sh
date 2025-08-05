@@ -1,6 +1,6 @@
 #!/bin/bash
 
-cd /path/to/sauce-api-mcp/src/sauce_mcp
+cd /Users/marcusmerrell/Projects/sauce-api-mcp
 
 # Create virtual environment if it doesn't exist
 if [ ! -d "venv" ]; then
