@@ -69,10 +69,8 @@ jobs:
         repository-url: https://test.pypi.org/legacy/
         password: ${{ secrets.TEST_PYPI_API_TOKEN }}
 
-    # Production requires manual approval
     - name: Publish to PyPI
       if: "!contains(github.ref, 'beta') && !contains(github.ref, 'rc') && !contains(github.ref, 'alpha')"
-      environment: production  # This triggers the manual approval
       uses: pypa/gh-action-pypi-publish@release/v1
       with:
         password: ${{ secrets.PYPI_API_TOKEN }}
