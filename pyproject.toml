@@ -1,10 +1,10 @@
-[system]
+[build-system]
 requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "sauce-labs-mcp"
-version = "0.1.0.dev1"
+name = "sauce-api-mcp"
+version = "v0.1.0.beta1"
 description = "An MCP server for Sauce Labs APIs"
 authors = [{name = "Marcus Merrell", email = "marcus.merrell@saucelabs.com"}]
 license = {text = "MIT"}
