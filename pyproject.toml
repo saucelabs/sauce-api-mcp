@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "sauce-api-mcp"
-version = "v0.1.0.beta1"
+version = "0.1.0.beta2"
 description = "An MCP server for Sauce Labs APIs"
 authors = [{name = "Marcus Merrell", email = "marcus.merrell@saucelabs.com"}]
 license = {text = "MIT"}
