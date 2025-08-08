@@ -72,3 +72,9 @@ jobs:
       with:
         password: ${{ secrets.TEST_PYPI_API_TOKEN }}
         repository-url: https://test.pypi.org/legacy/
+
+    - name: Publish to PyPI
+      if: "!contains(github.ref, 'beta') && !contains(github.ref, 'rc') && !contains(github.ref, 'alpha')"
+      uses: pypa/gh-action-pypi-publish@release/v1
+      with:
+        password: ${{ secrets.PYPI_API_TOKEN }}
