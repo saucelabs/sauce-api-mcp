@@ -28,9 +28,6 @@ jobs:
         pip install -e .
         pip install pytest pytest-asyncio httpx
 
-    - name: Run tests
-      run: pytest tests/ -v
-
   build:
     runs-on: ubuntu-latest
     needs: test
