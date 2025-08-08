@@ -31,6 +31,7 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+include = ["sauce_api_mcp*"]
 
 [tool.setuptools.package-dir]
 "" = "src"
