@@ -5,7 +5,7 @@ Provides tools for managing jobs, builds, teams, users, and test assets.
 """
 
 # Version information
-__version__ = "0.1.0.dev1"
+__version__ = "0.1.0.beta5"
 __author__ = "Marcus Merrell"
 __email__ = "marcus.merrell@saucelabs.com"
 
@@ -18,7 +18,7 @@ from .models import (
     LookupTeamsResponse,
     ErrorResponse
 )
-# Define what gets imported with "from sauce_mcp import *"
+# Define what gets imported with "from sauce_api_mcp import *"
 __all__ = [
     "SauceLabsAgent",
     "AccountInfo",
