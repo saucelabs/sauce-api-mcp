@@ -1,26 +1,36 @@
-[system]
-requires = ["setuptools>=61.0", "wheel"]
-build-backend = "setuptools.build_meta"
-
 [project]
-name = "sauce-labs-mcp"
-version = "0.1.0.dev1"
-description = "An MCP server for Sauce Labs APIs"
-authors = [{name = "Marcus Merrell", email = "marcus.merrell@saucelabs.com"}]
-license = {text = "MIT"}
+name = "sauce-api-mcp"
+version = "0.1.0.beta5"
+description = "MCP server for Sauce Labs API"
+authors = [
+    {name = "Marcus Merrell", email = "marcus.merrell@saucelabs.com"}
+]
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "httpx>=0.24.0",
-    "mcp>=1.10.1",
+    "httpx",
+    "pydantic",
+    "mcp"
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
 ]
 
-[project.optional-dependencies]
-test = [
-    "pytest>=7.0.0",
-    "pytest-asyncio>=0.21.0",
-]
+[project.scripts]
+sauce-api-mcp = "sauce_api_mcp.__main__:main"
+
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 where = ["src"]
-include = ["sauce_mcp*"]
+
+[tool.setuptools.package-dir]
+"" = "src"

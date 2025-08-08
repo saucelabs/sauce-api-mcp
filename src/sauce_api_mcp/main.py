@@ -7,7 +7,7 @@ import sys
 import logging
 from urllib.parse import urlencode
 
-from models import (
+from .models import (
     AccountInfo,
     LookupUsers,
     LookupServiceAccounts,
@@ -1055,8 +1055,7 @@ def check_stdio_is_not_tty():
         return False
     return True
 
-# --- Main Application Setup ---
-if __name__ == "__main__":
+def main():
     if not check_stdio_is_not_tty():
         sys.exit(1)
 
@@ -1081,3 +1080,7 @@ if __name__ == "__main__":
 
     # Run the FastMCP server instance
     mcp_server_instance.run(transport="stdio")
+
+# --- Main Application Setup ---
+if __name__ == "__main__":
+    main()
