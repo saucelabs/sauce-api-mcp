@@ -28,7 +28,7 @@ and monitor testing infrastructure directly through natural language conversatio
 
 ### For Claude Desktop (Mac)
 
-1. **Install the MCP server and launch script**:
+1. **Install the MCP server and download the launch script**:
 
     ```bash
     pip install sauce-api-mcp
@@ -63,14 +63,14 @@ and monitor testing infrastructure directly through natural language conversatio
 
 #### [Goose](https://block.github.io/goose/)
 
-First, install the MCP Server from `pip`, and launch script:
+First, install the MCP Server from `pip`, and download the launch script:
 
-    ```bash
-    pip install sauce-api-mcp
-   
-    curl -o ~/sauce-mcp-launcher.sh https://raw.githubusercontent.com/saucelabs/sauce-api-mcp/refs/heads/main/sauce-mcp-launcher.sh
-    chmod +x ~/sauce-mcp-launcher.sh
-    ```
+   ```bash
+       pip install sauce-api-mcp
+      
+       curl -o ~/sauce-mcp-launcher.sh https://raw.githubusercontent.com/saucelabs/sauce-api-mcp/refs/heads/main/sauce-mcp-launcher.sh
+       chmod +x ~/sauce-mcp-launcher.sh
+   ```
 
 Within your `~/.config/goose/config.yaml` file, add the following extension:
 
@@ -89,24 +89,24 @@ Within your `~/.config/goose/config.yaml` file, add the following extension:
 ```
 #### [Gemini CLI](https://github.com/google-gemini/gemini-cli)
 
-First, install the MCP Server from `pip`, and launch script:
+First, install the MCP Server from `pip`, and download the launch script:
 
-    ```bash
-    pip install sauce-api-mcp
-   
-    curl -o ~/sauce-mcp-launcher.sh https://raw.githubusercontent.com/saucelabs/sauce-api-mcp/refs/heads/main/sauce-mcp-launcher.sh
-    chmod +x ~/sauce-mcp-launcher.sh
-    ```
+   ```bash
+      pip install sauce-api-mcp
+      
+      curl -o ~/sauce-mcp-launcher.sh https://raw.githubusercontent.com/saucelabs/sauce-api-mcp/refs/heads/main/sauce-mcp-launcher.sh
+      chmod +x ~/sauce-mcp-launcher.sh
+   ```
 
 Within your `~/.gemini/settings.json` file, add the following:
 
-```json
-  "mcpServers": {
-    "sauce-api-mcp": {
-      "command": "/<path>/sauce-mcp-launcher.sh",
-      "args": []
-    }
-```
+   ```json
+     "mcpServers": {
+       "sauce-api-mcp": {
+         "command": "/<path>/sauce-mcp-launcher.sh",
+         "args": []
+       }
+   ```
 
 Be sure to edit the <path> to reflect your launch script location.
 
@@ -239,16 +239,6 @@ Ensure you're querying the correct data center region
 Verify the job ID is correct and belongs to your account
 Check if the job is from VDC vs RDC (different endpoints)
 Ensure the job hasn't expired due to retention policies
-
-### Debug Mode
-Enable debug logging by setting environment variables:
-
-    {
-      "env": {
-        "SAUCE_USERNAME": "your-username",
-        "SAUCE_ACCESS_KEY": "your-access-key",
-      }
-    }
 
 ## Getting Help
 
