@@ -24,9 +24,9 @@ and monitor testing infrastructure directly through natural language conversatio
 - Python 3.10+
 - `pip`
 - Sauce Labs account with API access
-- Claude Desktop application
+- Gemini CLI, Claude Desktop, Goose, or other LLM Client
 
-### For Claude Desktop (Mac)
+### For Claude Desktop (Mac/Linux) or Gemini CLI 
 
 1. **Install the MCP server and download the launch script**:
 
@@ -37,11 +37,17 @@ and monitor testing infrastructure directly through natural language conversatio
     chmod +x ~/sauce-mcp-launcher.sh
     ```
  
-2. **Configure Claude Desktop**:
-  
-    Edit your Claude Desktop configuration file:
+2. **Configure the Client**:
+   
+    Edit the config file:
+
+***Claude***
 
     `~/Library/Application\ Support/Claude/claude_desktop_config.json`
+
+***Gemini CLI***
+
+   `~/.gemini/settings.json`
 
 3. **Add the Sauce Labs MCP server configuration**:
 
@@ -59,7 +65,9 @@ and monitor testing infrastructure directly through natural language conversatio
     }
     ```
  
-4. **Restart Claude Desktop to load the new MCP server.**
+   ***Note: if you configure SAUCE_USERNAME and SAUCE_ACCESS_KEY as environment variables, you won't need to add them to the config block. 
+
+4. **Restart the client to load the new MCP server.**
 
 #### [Goose](https://block.github.io/goose/)
 
@@ -87,27 +95,6 @@ Within your `~/.config/goose/config.yaml` file, add the following extension:
     timeout: 10
     type: stdio
 ```
-#### [Gemini CLI](https://github.com/google-gemini/gemini-cli)
-
-First, install the MCP Server from `pip`, and download the launch script:
-
-   ```bash
-      pip install sauce-api-mcp
-      
-      curl -o ~/sauce-mcp-launcher.sh https://raw.githubusercontent.com/saucelabs/sauce-api-mcp/refs/heads/main/sauce-mcp-launcher.sh
-      chmod +x ~/sauce-mcp-launcher.sh
-   ```
-
-Within your `~/.gemini/settings.json` file, add the following:
-
-   ```json
-     "mcpServers": {
-       "sauce-api-mcp": {
-         "command": "/<path>/sauce-mcp-launcher.sh",
-         "args": []
-       }
-   ```
-
 Be sure to edit the <path> to reflect your launch script location.
 
 #### Now you can ask questions like:
@@ -123,9 +110,8 @@ Be sure to edit the <path> to reflect your launch script location.
 ### Optional Configuration ###
 
 SAUCE_REGION: Sauce Labs data center region (default: us-west-1)
-SAUCE_API_BASE: Custom API base URL (for enterprise accounts)
 
-Getting Your Sauce Labs Credentials
+# Getting Your Sauce Labs Credentials #
 
 1. Log into your Sauce Labs account
 2. Navigate to Account → User Settings
