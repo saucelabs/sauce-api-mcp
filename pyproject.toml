@@ -1,6 +1,6 @@
 [project]
 name = "sauce-api-mcp"
-version = "1.0.1-beta1"
+version = "1.0.1"
 description = "MCP server for Sauce Labs API"
 authors = [
     {name = "Marcus Merrell", email = "marcus.merrell@saucelabs.com"}
@@ -13,7 +13,7 @@ dependencies = [
     "mcp"
 ]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
