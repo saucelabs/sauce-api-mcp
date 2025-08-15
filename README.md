@@ -20,41 +20,42 @@ and monitor testing infrastructure directly through natural language conversatio
 - **Test Analytics**: Detailed job information including logs, videos, and performance metrics
 - **Team Collaboration**: Multi-team support with proper access controls
 
-## Installation
-
-In all instances, you'll need to rename `start_server.sh.template` to `start_server.sh`, and replace the `/path/to/sauce-api-mcp`
-to the correct absolute path in your environment.
-
 ### Prerequisites
-- Python 3.8+
+- Python 3.10+
+- `pip`
 - Sauce Labs account with API access
-- Claude Desktop application
+- Gemini CLI, Claude Desktop, Goose, or other LLM Client
 
-### For Claude Desktop (Mac)
+### For Claude Desktop (Mac/Linux) or Gemini CLI 
 
-1. **Install the MCP server**:
-   ```bash
-   # Clone the repository
-   git clone https://github.com/saucelabs/sauce-api-mcp.git
-   cd sauce-api-mcp
+1. **Install the MCP server and download the launch script**:
+
+    ```bash
+    pip install sauce-api-mcp
    
-   # Install dependencies
-   pip install -e .
-   ```
+    curl -o ~/sauce-mcp-launcher.sh https://raw.githubusercontent.com/saucelabs/sauce-api-mcp/refs/heads/main/sauce-mcp-launcher.sh
+    chmod +x ~/sauce-mcp-launcher.sh
+    ```
+ 
+2. **Configure the Client**:
    
-2. **Configure Claude Desktop**:
-  
-    Edit your Claude Desktop configuration file:
+    Edit the config file:
+
+***Claude***
 
     `~/Library/Application\ Support/Claude/claude_desktop_config.json`
 
+***Gemini CLI***
+
+   `~/.gemini/settings.json`
+
 3. **Add the Sauce Labs MCP server configuration**:
+
     ```json
     {
       "mcpServers": {
         "sauce-labs": {
-        "command": "python",
-        "args": ["/path/to/sauce-api-mcp/src/main.py"],
+        "command": "/path/to/tmp/sauce-mcp-launcher.sh",
           "env": {
             "SAUCE_USERNAME": "your-sauce-username",
             "SAUCE_ACCESS_KEY": "your-sauce-access-key"
@@ -63,84 +64,21 @@ to the correct absolute path in your environment.
       }
     }
     ```
-   
-4. **Restart Claude Desktop to load the new MCP server.**
+ 
+   ***Note: if you configure SAUCE_USERNAME and SAUCE_ACCESS_KEY as environment variables, you won't need to add them to the config block. 
 
-### For Claude Desktop (Windows) ###
-
-1. **Install the MCP server**:
-    ```cmd
-    # Clone the repository
-    git clone https://github.com/saucelabs/sauce-api-mcp.git
-    cd sauce-api-mcp.git
-
-    # Install dependencies
-    pip install -e . 
-    ```
-   
-2. **Configure Claude Desktop**:
-Edit your Claude Desktop configuration file:
-cmd# Open the config file (replace USERNAME with your Windows username)
-notepad %APPDATA%\Claude\claude_desktop_config.json
-
-3. **Add the Sauce Labs MCP server configuration**:
-    ```json
-    {
-      "mcpServers": {
-        "sauce-labs": {
-        "command": "python",
-        "args": ["/path/to/sauce-api-mcp/src/main.py"],
-          "env": {
-            "SAUCE_USERNAME": "your-sauce-username", 
-            "SAUCE_ACCESS_KEY": "your-sauce-access-key"
-          }
-        }
-      }
-    }
-    ```
-   
-4. **Restart Claude Desktop to load the new MCP server.**
-
-### For Claude Code (Terminal Integration)
-
-Claude Code allows you to use the Sauce Labs MCP server directly from your terminal for AI-assisted testing workflows.
-
-1. **Install Claude Code**:
-   ```bash
-   # Install Claude Code (if not already installed)
-   curl -fsSL https://claude.ai/claude-code/install.sh | sh
-   ```
-   
-2. Install the Sauce Labs MCP server:
-
-bash# Clone and install the MCP server
-git clone https://github.com/saucelabs/sauce-api-mcp.git
-cd sauce-api-mcp
-pip install -e .
-
-3. Configure LLM Client:
-
-#### [Claude Code](https://github.com/anthropics/claude-code)
-Create or edit your Claude Code configuration:
-bash# Create config directory if it doesn't exist
-mkdir -p ~/.config/claude-code
-
-code ~/.config/claude-code/config.json
-
-Add the Sauce Labs MCP server configuration:
-json{
-  "mcpServers": {
-    "sauce-labs": {
-      "command": "sauce-api-mcp.git",
-      "env": {
-        "SAUCE_USERNAME": "your-sauce-username",
-        "SAUCE_ACCESS_KEY": "your-sauce-access-key"
-      }
-    }
-  }
-}
+4. **Restart the client to load the new MCP server.**
 
 #### [Goose](https://block.github.io/goose/)
+
+First, install the MCP Server from `pip`, and download the launch script:
+
+   ```bash
+       pip install sauce-api-mcp
+      
+       curl -o ~/sauce-mcp-launcher.sh https://raw.githubusercontent.com/saucelabs/sauce-api-mcp/refs/heads/main/sauce-mcp-launcher.sh
+       chmod +x ~/sauce-mcp-launcher.sh
+   ```
 
 Within your `~/.config/goose/config.yaml` file, add the following extension:
 
@@ -148,7 +86,7 @@ Within your `~/.config/goose/config.yaml` file, add the following extension:
   sauce-api-mcp:
     args: []
     bundled: null
-    cmd: /<path>/sauce-api-mcp/start_server.sh
+    cmd: /<path>/sauce-mcp-launcher.sh
     description: Sauce Labs MCP for API
     enabled: true
     env_keys: []
@@ -157,17 +95,7 @@ Within your `~/.config/goose/config.yaml` file, add the following extension:
     timeout: 10
     type: stdio
 ```
-#### [Gemini CLI](https://github.com/google-gemini/gemini-cli)
-
-Within your `~/.gemini/settings.json` file, add the following:
-
-```json
-  "mcpServers": {
-    "sauce-api-mcp": {
-      "command": "/Users/marcusmerrell/Projects/sauce-api-mcp/start_server.sh",
-      "args": []
-    }
-```
+Be sure to edit the <path> to reflect your launch script location.
 
 #### Now you can ask questions like:
 * "Show me my recent test failures"
@@ -182,9 +110,8 @@ Within your `~/.gemini/settings.json` file, add the following:
 ### Optional Configuration ###
 
 SAUCE_REGION: Sauce Labs data center region (default: us-west-1)
-SAUCE_API_BASE: Custom API base URL (for enterprise accounts)
 
-Getting Your Sauce Labs Credentials
+# Getting Your Sauce Labs Credentials #
 
 1. Log into your Sauce Labs account
 2. Navigate to Account → User Settings
@@ -298,16 +225,6 @@ Ensure you're querying the correct data center region
 Verify the job ID is correct and belongs to your account
 Check if the job is from VDC vs RDC (different endpoints)
 Ensure the job hasn't expired due to retention policies
-
-### Debug Mode
-Enable debug logging by setting environment variables:
-
-    {
-      "env": {
-        "SAUCE_USERNAME": "your-username",
-        "SAUCE_ACCESS_KEY": "your-access-key",
-      }
-    }
 
 ## Getting Help
 
