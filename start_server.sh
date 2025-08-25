@@ -1,16 +1,21 @@
-#!/bin/bash
+#!/usr/bin/env bash
+# All comments MUST be in English.
+set -euo pipefail
 
-cd /Users/marcusmerrell/Projects/sauce-api-mcp
+# cd to repo root (assumes this script lives in repo root)
+cd "$(dirname "$0")"
 
-# Create virtual environment if it doesn't exist
-if [ ! -d "venv" ]; then
-  echo "Creating virtual environment..."
-  python3 -m venv venv
-  echo "Installing dependencies..."
-  source venv/bin/activate
-  pip install -e .
-else
-  source venv/bin/activate
+# Load .env if present (API keys, etc.)
+if [ -f .env ]; then
+  set -a
+  # shellcheck disable=SC1091
+  . ./.env
+  set +a
 fi
 
-python -m sauce_mcp.main
+# Ensure deps are ready (fast if already synced)
+# Try locked first for reproducibility; fallback if lock missing/outdated.
+uv sync --locked || uv sync
+
+# Exec MCP server with any args passed by the client
+exec uv run sauce-mcp-core "$@"

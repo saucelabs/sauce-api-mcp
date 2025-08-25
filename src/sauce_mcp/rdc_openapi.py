@@ -60,13 +60,20 @@ class SauceLabsRDCAgent:
         self.mcp.tool()(self.list_app_installations)
         self.mcp.tool()(self.launch_app)
 
+        # Device control
+        self.mcp.tool()(self.execute_shell_command)
+
         # Browser/URL Control
         self.mcp.tool()(self.open_url_or_deeplink)
         logging.info("SauceAPI client initialized and resource manifest loaded.")
 
     # Not exposed to the Agent
     async def sauce_api_call(
-            self, relative_endpoint: str, method: str = "GET", params: Optional[dict] = None
+            self,
+            relative_endpoint: str,
+            method: str = "GET",
+            params: Optional[dict] = None,
+            json: Optional[dict] = None
     ) -> Union[httpx.Response, dict[str, str]]:
         try:
             # Always add the ai parameter
@@ -76,7 +83,8 @@ class SauceLabsRDCAgent:
             response = await self.client.request(
                 method,
                 relative_endpoint,
-                params=all_params
+                params=all_params,
+                json=json
             )
             response.raise_for_status()
             return response
@@ -283,7 +291,7 @@ class SauceLabsRDCAgent:
         :param targetPath: Required. The path to make the request to (can contain query parameters)
         """
 
-        endpoint = f"rdc/v2/sessions/{sessionId}/proxy/{targetHost}/{targetPort}/{targetPath}"
+        endpoint = f"rdc/v2/sessions/{sessionId}/device/proxy/http/{targetHost}/{targetPort}/{targetPath}"
         response = await self.sauce_api_call(endpoint, method="GET")
 
         if isinstance(response, dict):
@@ -394,8 +402,8 @@ class SauceLabsRDCAgent:
         :param data: Optional. JSON data to send in POST body
         """
 
-        endpoint = f"rdc/v2/sessions/{sessionId}/proxy/{targetHost}/{targetPort}/{targetPath}"
-        response = await self.sauce_api_call(endpoint, method="POST", params=data)
+        endpoint = f"rdc/v2/sessions/{sessionId}/device/proxy/http/{targetHost}/{targetPort}/{targetPath}"
+        response = await self.sauce_api_call(endpoint, method="POST", json=data)
 
         if isinstance(response, dict):
             return response
@@ -468,8 +476,8 @@ class SauceLabsRDCAgent:
         """
         Forward a single PUT request via a proxy running on the device.
         """
-        endpoint = f"rdc/v2/sessions/{sessionId}/proxy/{targetHost}/{targetPort}/{targetPath}"
-        response = await self.sauce_api_call(endpoint, method="PUT", params=data)
+        endpoint = f"rdc/v2/sessions/{sessionId}/device/proxy/http/{targetHost}/{targetPort}/{targetPath}"
+        response = await self.sauce_api_call(endpoint, method="PUT", json=data)
 
         if isinstance(response, dict):
             return response
@@ -513,7 +521,7 @@ class SauceLabsRDCAgent:
         """
         Forward a single DELETE request via a proxy running on the device.
         """
-        endpoint = f"rdc/v2/sessions/{sessionId}/proxy/{targetHost}/{targetPort}/{targetPath}"
+        endpoint = f"rdc/v2/sessions/{sessionId}/device/proxy/http/{targetHost}/{targetPort}/{targetPath}"
         response = await self.sauce_api_call(endpoint, method="DELETE")
 
         if isinstance(response, dict):
@@ -552,7 +560,7 @@ class SauceLabsRDCAgent:
         """
         Forward a single OPTIONS request via a proxy running on the device.
         """
-        endpoint = f"rdc/v2/sessions/{sessionId}/proxy/{targetHost}/{targetPort}/{targetPath}"
+        endpoint = f"rdc/v2/sessions/{sessionId}/device/proxy/http/{targetHost}/{targetPort}/{targetPath}"
         response = await self.sauce_api_call(endpoint, method="OPTIONS")
 
         if isinstance(response, dict):
@@ -588,7 +596,7 @@ class SauceLabsRDCAgent:
         """
         Forward a single HEAD request via a proxy running on the device.
         """
-        endpoint = f"rdc/v2/sessions/{sessionId}/proxy/{targetHost}/{targetPort}/{targetPath}"
+        endpoint = f"rdc/v2/sessions/{sessionId}/device/proxy/http/{targetHost}/{targetPort}/{targetPath}"
         response = await self.sauce_api_call(endpoint, method="HEAD")
 
         if isinstance(response, dict):
@@ -647,7 +655,7 @@ class SauceLabsRDCAgent:
                 device_config["os"] = os.lower()
             data["device"] = device_config
 
-        response = await self.sauce_api_call("rdc/v2/sessions", method="POST", params=data)
+        response = await self.sauce_api_call("rdc/v2/sessions", method="POST", json=data)
 
         if isinstance(response, dict):
             return response
@@ -822,7 +830,7 @@ class SauceLabsRDCAgent:
                 }
             data["features"] = features
 
-        response = await self.sauce_api_call(f"rdc/v2/sessions/{sessionId}/apps", method="POST", params=data)
+        response = await self.sauce_api_call(f"rdc/v2/sessions/{sessionId}/device/installApp", method="POST", json=data)
 
         if isinstance(response, dict):
             return response
@@ -963,7 +971,7 @@ class SauceLabsRDCAgent:
         if bundleId:
             data["bundleId"] = bundleId
 
-        response = await self.sauce_api_call(f"rdc/v2/sessions/{sessionId}/launch", method="POST", params=data)
+        response = await self.sauce_api_call(f"rdc/v2/sessions/{sessionId}/device/launchApp", method="POST", json=data)
 
         if isinstance(response, dict):
             return response
@@ -1015,6 +1023,15 @@ class SauceLabsRDCAgent:
                 "error": f"Session not found: {sessionId}",
                 "session_id": sessionId
             }
+        
+        # Success returns 204 No Content
+        if response.status_code == 204:
+            return {
+                "success": True,
+                "message": "App opened successfully",
+                "session_id": sessionId,
+                "app": data
+            }
 
         return response.json()
 
@@ -1048,7 +1065,7 @@ class SauceLabsRDCAgent:
                 ]
             }
 
-        response = await self.sauce_api_call(f"rdc/v2/sessions/{sessionId}/url", method="POST", params=data)
+        response = await self.sauce_api_call(f"rdc/v2/sessions/{sessionId}/device/openUrl", method="POST", json=data)
 
         if isinstance(response, dict):
             return response
@@ -1111,6 +1128,83 @@ class SauceLabsRDCAgent:
             }
 
         return response.json()
+    
+    async def execute_shell_command(
+            self,
+            sessionId: str,
+            adbShellCommand: str
+    ) -> Dict[str, Any]:
+        """
+        Execute an adb shell command on an Android device. This command is not available for iOS devices.
+        The adbShellCommand should be the shell command executed in the device, for example 'ls /'.
+
+        :param sessionId: Required. The id of the device session
+        :param adbShellCommand: Required. The adb command to execute in the Android device.
+        """
+
+        data = {"adbShellCommand": adbShellCommand}
+
+        # Basic URL validation
+        if not adbShellCommand or not isinstance(adbShellCommand, str):
+            return {
+                "error": "Invalid adb command provided",
+                "command": adbShellCommand,
+                "suggestions": [
+                    "Provide a valid string with an adb command in it",
+                    "Example: ls /"
+                ]
+            }
+
+        response = await self.sauce_api_call(f"rdc/v2/sessions/{sessionId}/device/executeShellCommand", method="POST", json=data)
+
+        if isinstance(response, dict):
+            return response
+
+        if response.status_code == 400:
+            try:
+                error_details = response.json()
+                error_detail = error_details.get("detail", "")
+
+                if "Device not ready" in error_detail:
+                    return {
+                        "error": "Device session not ready for executing commands",
+                        "session_id": sessionId,
+                        "possible_reasons": [
+                            "Session is not in ACTIVE state",
+                            "Device is still initializing"
+                        ],
+                        "suggestions": [
+                            "Wait for session to become ACTIVE",
+                            "Check session state with get_session_details"
+                        ]
+                    }
+                else:
+                    return {
+                        "error": "Invalid request parameters",
+                        "session_id": sessionId,
+                        "possible_reasons": [
+                            "User has no access to this feature",
+                            "Invoked on an iOS session instead of Android"
+                        ],
+                        "suggestions": [
+                            "Verify the user plan has access to OpenAPI",
+                            "Verify the session is for an Android device "
+                        ]
+                    }
+            except:
+                return {
+                    "error": "Bad request - unable to open URL",
+                    "session_id": sessionId,
+                    "command": adbShellCommand
+                }
+
+        if response.status_code == 404:
+            return {
+                "error": f"Session not found: {sessionId}",
+                "session_id": sessionId
+            }
+
+        return response.json()
 
 def check_stdio_is_not_tty():
     """Check if running in proper MCP environment"""
@@ -1119,7 +1213,9 @@ def check_stdio_is_not_tty():
         return False
     return True
 
-if __name__ == "__main__":
+
+def main():
+    """Main entry point for the script."""
     if not check_stdio_is_not_tty():
         sys.exit(1)
 
@@ -1144,3 +1240,7 @@ if __name__ == "__main__":
 
     # Run the FastMCP server instance
     mcp_server_instance.run(transport="stdio")
+
+
+if __name__ == "__main__":
+    main()

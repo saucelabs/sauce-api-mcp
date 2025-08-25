@@ -1054,8 +1054,9 @@ def check_stdio_is_not_tty():
         return False
     return True
 
-# --- Main Application Setup ---
-if __name__ == "__main__":
+# # --- Main Application Setup ---
+def main():
+    """Main entry point for the script."""
     if not check_stdio_is_not_tty():
         sys.exit(1)
 
@@ -1080,3 +1081,6 @@ if __name__ == "__main__":
 
     # Run the FastMCP server instance
     mcp_server_instance.run(transport="stdio")
+
+if __name__ == "__main__":
+    main()
