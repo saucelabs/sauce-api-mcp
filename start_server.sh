@@ -18,4 +18,4 @@ fi
 uv sync --locked || uv sync
 
 # Exec MCP server with any args passed by the client
-exec uv run sauce-mcp-core "$@"
+exec uv run sauce-api-mcp "$@"
