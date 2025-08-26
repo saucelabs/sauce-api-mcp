@@ -898,7 +898,7 @@ class SauceLabsRDCAgent:
         :param sessionId: Required. The id of the device session
         """
 
-        response = await self.sauce_api_call(f"rdc/v2/sessions/{sessionId}/device/listAppInstallations")
+        response = await self.sauce_api_call(f"rdc/v2/sessions/{sessionId}/device/listAppInstallations", method="POST")
 
         if isinstance(response, dict):
             return response
