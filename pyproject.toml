@@ -26,6 +26,7 @@ classifiers = [
 [project.scripts]
 sauce-api-mcp = "sauce_api_mcp.main:main"
 sauce-api-rdc-openapi = "sauce_api_mcp.rdc_openapi:main"
+sauce-appium-mcp = "sauce_api_mcp.appium:main"
 
 [build-system]
 requires = ["setuptools>=64", "wheel"]

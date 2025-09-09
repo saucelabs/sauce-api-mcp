@@ -21,7 +21,6 @@ class SauceLabsRDCAgent:
         username: str,
         region: str = "US_WEST",
     ):
-
         self.mcp = mcp_server
 
         self.username = username
@@ -78,7 +77,7 @@ class SauceLabsRDCAgent:
         try:
             # Always add the ai parameter
             all_params = params or {}
-            all_params['ai'] = 'rdc_mcp'
+            # all_params['ai'] = 'rdc_mcp'
 
             response = await self.client.request(
                 method,
