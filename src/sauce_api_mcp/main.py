@@ -1,4 +1,5 @@
 import base64
+import os
 
 from mcp.server import FastMCP
 from typing import Dict, Any, Union, Optional, List  # For type hinting dicts
@@ -89,8 +90,11 @@ class SauceLabsAgent:
         self.mcp.tool()(self.get_current_jobs_for_tunnel)
 
         ### Storage
+        self.mcp.tool()(self.get_storage_files)
         self.mcp.tool()(self.get_storage_groups)
         self.mcp.tool()(self.get_storage_groups_settings)
+        self.mcp.tool()(self.upload_file_to_storage)
+        self.mcp.tool()(self.update_storage_group_settings)
 
         ### Real Devices
         self.mcp.tool()(self.get_specific_device)
@@ -104,18 +108,44 @@ class SauceLabsAgent:
 
     # Not exposed to the Agent
     async def sauce_api_call(
-            self, relative_endpoint: str, method: str = "GET", params: Optional[dict] = None
+            self, relative_endpoint: str, method: str = "GET", params: Optional[dict] = None,
+            files: Optional[dict] = None,
+            form_data: Optional[dict] = None,
+            json_body: Optional[dict] = None
     ) -> Union[httpx.Response, dict[str, str]]:
         try:
-            # Always add the ai parameter
             all_params = params or {}
             all_params['ai'] = 'mcp'
 
-            response = await self.client.request(
-                method,
-                relative_endpoint,
-                params=all_params
-            )
+            if files or form_data:
+                request_files = {}
+                request_data = {}
+
+                if files:
+                    for key, file_path in files.items():
+                        request_files[key] = open(file_path, 'rb')
+
+                if form_data:
+                    request_data.update(form_data)
+
+                response = await self.client.request(
+                    method,
+                    relative_endpoint,
+                    params=all_params,
+                    files=request_files,
+                    data=request_data
+                )
+
+                for file_handle in request_files.values():
+                    file_handle.close()
+            else:
+                response = await self.client.request(
+                    method,
+                    relative_endpoint,
+                    params=all_params,
+                    json=json_body
+                )
+
             response.raise_for_status()
             return response
 
@@ -474,16 +504,167 @@ class SauceLabsAgent:
             return response.json()
         return response
 
-    # Not published in v1
-    async def get_network_har_file(self, job_id: str) -> Dict[str, str]:
+    async def get_network_har_file(
+            self, job_id: str,
+            filter_category: Optional[str] = None,
+            custom_domains: Optional[List[str]] = None,
+            resource_types: Optional[List[str]] = None,
+            status_codes: Optional[List[int]] = None
+    ) -> dict:
         """
-        Returns the HAR file of network traffic gathered during the test, in structured json format.
+        Retrieves and filters HAR file data from a Sauce Labs test job.
+
+        The tool can intelligently filter requests to reduce data size and focus analysis.
+        Use filter categories for common patterns, or specify custom filters for detailed control.
+
+        :param job_id: The Sauce Labs Job ID (works for VDC jobs with network capture enabled)
+        :param filter_category: Predefined filter categories:
+            - "analytics" - Google Analytics, Facebook Pixel, Adobe Analytics, Comscore, etc.
+            - "api" - Internal API calls (same domain as main site, JSON responses)
+            - "fonts" - Font loading requests (woff, woff2, ttf, etc.)
+            - "images" - Image resources (jpg, png, webp, svg, etc.)
+            - "scripts" - JavaScript files and external scripts
+            - "errors" - Failed requests (4xx, 5xx status codes)
+            - "slow" - Requests taking longer than 1 second
+            - "third-party" - All external domain requests
+        :param custom_domains: List of domain patterns to include (e.g., ["google", "facebook", "api.company.com"])
+        :param resource_types: List of resource types to include (e.g., ["Script", "XHR", "Image"])
+        :param status_codes: List of HTTP status codes to include (e.g., [200, 404, 500])
+        :return: Filtered HAR data structure with only matching requests
+
+        Examples:
+        - get_network_har_file(job_id, filter_category="analytics")
+        - get_network_har_file(job_id, filter_category="api")
+        - get_network_har_file(job_id, custom_domains=["retailmenot.com"], resource_types=["XHR"])
         """
+
+        # First get the full HAR file
         asset_url = await self.get_asset_url(job_id, "network.har")
         response = await self.sauce_api_call(asset_url)
+
         if isinstance(response, httpx.Response):
-            return response.json()
-        return response
+            full_har = response.json()
+        else:
+            full_har = response
+
+        # If no filtering requested, return full HAR
+        if not any([filter_category, custom_domains, resource_types, status_codes]):
+            return full_har
+
+        # Apply filtering
+        filtered_entries = []
+
+        for entry in full_har.get("log", {}).get("entries", []):
+            if self._should_include_entry(entry, filter_category, custom_domains, resource_types, status_codes):
+                filtered_entries.append(entry)
+
+        # Return filtered HAR with same structure
+        filtered_har = full_har.copy()
+        filtered_har["log"]["entries"] = filtered_entries
+
+        # Add metadata about filtering
+        original_count = len(full_har.get("log", {}).get("entries", []))
+        filtered_har["_filter_metadata"] = {
+            "original_request_count": original_count,
+            "filtered_request_count": len(filtered_entries),
+            "filter_category": filter_category,
+            "custom_domains": custom_domains,
+            "resource_types": resource_types,
+            "status_codes": status_codes
+        }
+
+        return filtered_har
+
+    def _should_include_entry(self, entry, filter_category, custom_domains, resource_types, status_codes):
+        """Helper function to determine if a HAR entry should be included based on filters."""
+
+        url = entry.get("request", {}).get("url", "").lower()
+        resource_type = entry.get("_resourceType", "")
+        status_code = entry.get("response", {}).get("status", 0)
+
+        # Check status codes filter
+        if status_codes and status_code not in status_codes:
+            return False
+
+        # Check resource types filter
+        if resource_types and resource_type not in resource_types:
+            return False
+
+        # Check custom domains filter
+        if custom_domains:
+            if not any(domain.lower() in url for domain in custom_domains):
+                return False
+
+        # Check predefined categories
+        if filter_category:
+            return self._matches_category(entry, filter_category, url, resource_type, status_code)
+
+        return True
+
+    def _matches_category(self, entry, category, url, resource_type, status_code):
+        """Check if entry matches a predefined filter category."""
+
+        # Extract timing info for slow requests
+        time_total = entry.get("time", 0)
+
+        if category == "analytics":
+            analytics_domains = [
+                "google-analytics", "googletagmanager", "gtag", "facebook.com/tr",
+                "scorecardresearch", "comscore", "adobe.com", "omniture", "chartbeat",
+                "hotjar", "mixpanel", "amplitude", "segment", "analytics", "tracking",
+                "stackadapt", "doubleclick", "googlesyndication", "amazon-adsystem"
+            ]
+            return any(domain in url for domain in analytics_domains)
+
+        elif category == "api":
+            # Internal API calls - same domain + JSON responses or XHR/Fetch
+            main_domain = self._extract_main_domain(url)
+            content_type = entry.get("response", {}).get("headers", [])
+            is_json = any(
+                header.get("name", "").lower() == "content-type" and
+                "json" in header.get("value", "").lower()
+                for header in content_type if isinstance(content_type, list)
+            )
+            return resource_type in ["XHR", "Fetch"] or is_json
+
+        elif category == "fonts":
+            font_extensions = [".woff", ".woff2", ".ttf", ".otf", ".eot"]
+            font_types = ["Font", "font"]
+            return (any(ext in url for ext in font_extensions) or
+                    any(font_type in resource_type for font_type in font_types))
+
+        elif category == "images":
+            image_extensions = [".jpg", ".jpeg", ".png", ".gif", ".webp", ".svg", ".ico"]
+            return (resource_type == "Image" or
+                    any(ext in url for ext in image_extensions))
+
+        elif category == "scripts":
+            return resource_type == "Script" or ".js" in url
+
+        elif category == "errors":
+            return status_code >= 400
+
+        elif category == "slow":
+            return time_total > 1000  # Requests slower than 1 second
+
+        elif category == "third-party":
+            # Requests to domains different from the main page domain
+            # This would need the main page URL to compare against
+            return True  # Simplified for now
+
+        return False
+
+    def _extract_main_domain(self, url):
+        """Extract main domain from URL for comparison."""
+        try:
+            from urllib.parse import urlparse
+            parsed = urlparse(url)
+            domain_parts = parsed.netloc.split('.')
+            if len(domain_parts) >= 2:
+                return '.'.join(domain_parts[-2:])  # Get last two parts (domain.com)
+            return parsed.netloc
+        except:
+            return ""
 
     # Not published in v1
     async def get_performance_json_file(self, job_id: str) -> Dict[str, str]:
@@ -1040,9 +1221,110 @@ class SauceLabsAgent:
         Returns the settings of an app group with the given ID.
         :param group_id: The unique identifier of the app group. You can look up group IDs using the Get App Storage Groups endpoint.
         """
-        response = await self.sauce_api_call(f"v1/storage/groups/{group_id}/settings")
+        response = await self.sauce_api_call(f"rest/v1/storage/groups/{group_id}/settings")
         data = response.json()
         return data
+
+    async def upload_file_to_storage(self, file_path: str, name: str, description: str, tags: List[str], project_name: str):
+        """
+        Uploads an app file to Sauce Storage for the purpose of mobile app testing or generic files to be used as Pre-Run
+        Executables and returns a unique file ID assigned to the uploaded file.Sauce Storage supports mobile app packages
+        in *.apk, *.aab, *.ipa, or *.zip format as well as any other file format.The maximum size of a single file is limited to 4GB.
+
+        :param payload: The path to the file you want to upload.
+        :param name: The portion of the payload value that is the actual file name (including the type extension).
+        :param description: A description to distinguish your app.
+        :param tags: An optional list of comma-separated tag names assigned to the uploaded file. Each tag name length
+            must be between 1 and 16 characters. Tag names must only consist of uppercase (A-Z), lowercase (a-z),
+            digits (0-9), underscore ("_"), hyphen ("-"), and dot (".") characters. Tag names are case-sensitive. It is
+            allowed to assign up to 10 tags to a single file.
+        :param project_name: An optional name for the project you want the file (group) to be assigned to. If the
+            project doesn't exist, it will be created. Project names can only consist of alphanumeric (uppercase and
+            lowercase) characters, along with underscores ("_"), hyphens ("-"), periods ("."), and spaces (" "). Project
+            names are case-sensitive and can be max 64 characters long.
+        :return: 201	Created.
+                 400	Bad Request.
+                 404	Not found.
+        """
+        if not os.path.exists(file_path):
+            raise ValueError(f"File not found: {file_path}")
+
+        if name is None:
+            name = os.path.basename(file_path)
+
+        form_data = {"name": name}
+        if description:
+            form_data["description"] = description
+
+        files = {"payload": file_path}
+
+        return await self.sauce_api_call(
+            "v1/storage/upload",
+            method="POST",
+            files=files,
+            form_data=form_data
+        )
+
+    async def update_storage_group_settings(
+            self,
+            group_id: str,
+            proxy: Optional[Dict[str, Any]] = None,  # {"host": str, "port": int}
+            audio_capture: Optional[bool] = None,
+            proxy_enabled: Optional[bool] = None,
+            lang: Optional[str] = None,  # e.g., "en_GB", "en_US"
+            orientation: Optional[str] = None,  # likely "portrait", "landscape", or null
+            resigning_enabled: Optional[bool] = None,  # iOS only
+            resigning: Optional[Dict[str, bool]] = None,  # iOS settings dict
+            instrumentation: Optional[Dict[str, bool]] = None  # Android settings dict (from other examples)
+    ) -> Dict:
+        """
+        Update app storage group settings for the specified group.
+
+        :param group_id: Required. The unique identifier of the app group.
+        :param proxy: Optional. Proxy configuration with 'host' and 'port' keys.
+        :param audio_capture: Optional. Enable/disable audio capture during testing.
+        :param proxy_enabled: Optional. Enable/disable proxy usage.
+        :param lang: Optional. Language setting (e.g., 'en_GB', 'en_US').
+        :param orientation: Optional. Device orientation preference.
+        :param resigning_enabled: Optional. Enable/disable app resigning (iOS only).
+        :param resigning: Optional. iOS-specific resigning settings dict with keys:
+            - image_injection: bool
+            - group_directory: bool
+            - biometrics: bool
+            - sys_alerts_delay: bool
+            - network_capture: bool
+            - vitals: bool (seen in other examples)
+            - backtrace: bool (seen in other examples)
+        :param instrumentation: Optional. Android-specific instrumentation settings.
+        :return: Updated settings response from API.
+        """
+        settings = {}
+
+        if proxy is not None:
+            settings["proxy"] = proxy
+        if audio_capture is not None:
+            settings["audio_capture"] = audio_capture
+        if proxy_enabled is not None:
+            settings["proxy_enabled"] = proxy_enabled
+        if lang is not None:
+            settings["lang"] = lang
+        if orientation is not None:
+            settings["orientation"] = orientation
+        if resigning_enabled is not None:
+            settings["resigning_enabled"] = resigning_enabled
+        if resigning is not None:
+            settings["resigning"] = resigning
+        if instrumentation is not None:
+            settings["instrumentation"] = instrumentation
+
+        payload = {"settings": settings}
+
+        response = await self.sauce_api_call(
+            f"v1/storage/groups/{group_id}/settings",
+            method="PUT",
+            json_body=payload
+        )
+        return response.json()
 
 # If run directly from a TTY, this server could be compromised (STDIO hijacking, etc)
 def check_stdio_is_not_tty():
