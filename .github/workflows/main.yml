@@ -22,4 +22,4 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e .[test]
       - name: Run tests
-        run: pytest
+        run: python -m pytest
