@@ -22,6 +22,12 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
 ]
 
+[project.optional-dependencies]
+test = [
+    "pytest",
+    "pytest-asyncio"
+]
+
 [project.scripts]
 sauce-api-mcp = "sauce_api_mcp.__main__:main"
 
