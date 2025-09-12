@@ -1,0 +1,18 @@
+name: Publish to MCP Registry
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Publish to MCP Registry
+        uses: modelcontextprotocol/publish-action@v1
+        with:
+          registry_token: ${{ secrets.MCP_REGISTRY_TOKEN }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
