@@ -23,7 +23,7 @@ and monitor testing infrastructure directly through natural language conversatio
 - **Team Collaboration**: Multi-team support with proper access controls
 
 ### Prerequisites
-- Python 3.10+
+- Python 3.9+
 - `pip`
 - Sauce Labs account with API access
 - Gemini CLI, Claude Desktop, Goose, or other LLM Client
