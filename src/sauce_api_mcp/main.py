@@ -41,6 +41,7 @@ class SauceLabsAgent:
 
         self.username = username
         auth = httpx.BasicAuth(username, access_key)
+        self._har_cache = {}  # Simple dict cache for HAR data
 
         base_url = ""
         if region.upper() == "OTHER":
@@ -76,6 +77,7 @@ class SauceLabsAgent:
         self.mcp.tool()(self.get_test_assets)
         self.mcp.tool()(self.get_log_json_file)
         self.mcp.tool()(self.get_network_har_file)
+        self.mcp.tool()(self.filter_har_data)
 
         ### Builds
         self.mcp.tool()(self.get_build_for_job)
@@ -504,6 +506,78 @@ class SauceLabsAgent:
             return response.json()
         return response
 
+    async def filter_har_data(
+            self,
+            job_id: str,
+            filter_category: Optional[str] = None,
+            custom_domains: Optional[List[str]] = None,
+            resource_types: Optional[List[str]] = None,
+            status_codes: Optional[List[int]] = None
+    ) -> dict:
+        """
+        Filters HAR data with in-memory caching for efficient multiple queries.
+
+        **Key difference from get_network_har_file**: This method caches the full HAR
+        data in memory after the first call, making subsequent filtering operations
+        instant without re-downloading from Sauce Labs.
+
+        First call for a job_id downloads and caches the full HAR data.
+        Subsequent calls filter the cached data instantly.
+
+        :param job_id: The Sauce Labs Job ID
+        :param filter_category: Predefined categories ("analytics", "social", "api", etc.)
+        :param custom_domains: Domain patterns to include
+        :param resource_types: Resource types to include (Script, XHR, Image, etc.)
+        :param status_codes: HTTP status codes to include
+        :return: Filtered HAR data with cache metadata
+
+        Examples:
+        - filter_har_data(job_id, filter_category="analytics") # First call: downloads + caches
+        - filter_har_data(job_id, filter_category="social")    # Subsequent: instant filtering
+        - filter_har_data(job_id, custom_domains=["facebook"]) # Also instant
+        """
+        # Check if we have cached HAR data for this job
+        if job_id not in self._har_cache:
+            # Download and cache the full HAR
+            asset_url = await self.get_asset_url(job_id, "network.har")
+            response = await self.sauce_api_call(asset_url)
+
+            if isinstance(response, httpx.Response):
+                self._har_cache[job_id] = response.json()
+            else:
+                self._har_cache[job_id] = response
+
+        # Get cached HAR data
+        full_har = self._har_cache[job_id]
+
+        # If no filtering requested, return full HAR
+        if not any([filter_category, custom_domains, resource_types, status_codes]):
+            return full_har
+
+        # Apply filtering logic
+        filtered_entries = []
+        for entry in full_har.get("log", {}).get("entries", []):
+            if self._should_include_entry(entry, filter_category, custom_domains, resource_types, status_codes):
+                filtered_entries.append(entry)
+
+        # Return filtered HAR with same structure
+        filtered_har = full_har.copy()
+        filtered_har["log"]["entries"] = filtered_entries
+
+        # Add metadata about filtering
+        original_count = len(full_har.get("log", {}).get("entries", []))
+        filtered_har["_filter_metadata"] = {
+            "original_request_count": original_count,
+            "filtered_request_count": len(filtered_entries),
+            "filter_category": filter_category,
+            "custom_domains": custom_domains,
+            "resource_types": resource_types,
+            "status_codes": status_codes,
+            "cache_hit": True  # Indicates this came from cache
+        }
+
+        return filtered_har
+
     async def get_network_har_file(
             self, job_id: str,
             filter_category: Optional[str] = None,
@@ -538,7 +612,6 @@ class SauceLabsAgent:
         - get_network_har_file(job_id, custom_domains=["retailmenot.com"], resource_types=["XHR"])
         """
 
-        # First get the full HAR file
         asset_url = await self.get_asset_url(job_id, "network.har")
         response = await self.sauce_api_call(asset_url)
 
@@ -551,7 +624,6 @@ class SauceLabsAgent:
         if not any([filter_category, custom_domains, resource_types, status_codes]):
             return full_har
 
-        # Apply filtering
         filtered_entries = []
 
         for entry in full_har.get("log", {}).get("entries", []):
@@ -615,6 +687,14 @@ class SauceLabsAgent:
                 "stackadapt", "doubleclick", "googlesyndication", "amazon-adsystem"
             ]
             return any(domain in url for domain in analytics_domains)
+
+        elif category == "social":
+            social_domains = [
+                "facebook.com", "twitter.com", "instagram.com", "linkedin.com",
+                "pinterest.com", "snapchat.com", "tiktok.com", "youtube.com",
+                "fb.com", "t.co", "linkedin", "pinterest", "snapchat", "tiktok"
+            ]
+            return any(domain in url for domain in social_domains)
 
         elif category == "api":
             # Internal API calls - same domain + JSON responses or XHR/Fetch
