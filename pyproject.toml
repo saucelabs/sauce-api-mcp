@@ -1,6 +1,6 @@
 [project]
 name = "sauce-api-mcp"
-version = "1.0.2"
+version = "1.0.3"
 description = "MCP server for Sauce Labs API"
 authors = [
     {name = "Marcus Merrell", email = "marcus.merrell@saucelabs.com"}
