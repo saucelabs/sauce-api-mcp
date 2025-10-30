@@ -39,9 +39,10 @@ and monitor testing infrastructure directly through natural language conversatio
     chmod +x ~/sauce-mcp-launcher.sh
     ```
  
-2. **Configure the Client**:
-   
-    Edit the config file:
+2. **Configure the LLM Client (Claude, Gemini, etc)**:
+
+    For the client you're using you'll need to edit the config file. The location is slightly different for each, 
+    so here are some popular ones:
 
 ***Claude***
 
@@ -67,6 +68,9 @@ and monitor testing infrastructure directly through natural language conversatio
     }
     ```
  
+   The sauce-mcp-launcher.sh script is mostly for locating the python executable in  linux environment. If you have the 
+   sauce-api-mcp pypi library installed, you can invoke the library directly via `#exec $PYTHON_CMD -m sauce_api_mcp "$@"`.
+
    ***Note: if you configure SAUCE_USERNAME and SAUCE_ACCESS_KEY as environment variables, you won't need to add them to the config block. 
 
 4. **Restart the client to load the new MCP server.**
@@ -235,7 +239,9 @@ Ensure the job hasn't expired due to retention policies
 - Support: Contact Sauce Labs support through your account dashboard
 
 # License
-This project is licensed under the MIT License - see the LICENSE file for details.
+
+Apache 2.0 (versions 2.0+)
+Note: Versions prior to 1.0.3 were released under MIT License.
 
 # Roadmap
 
@@ -248,7 +254,7 @@ Want to help? We'd love to have you!
 * Find an existing issue in our **Issue Tracker** (../issues) that interests you.
 * Have a new idea? **Open a new issue** (../issues/new/choose) to discuss it with us.
 
-## 🎯 Short-Term (Next 1-3 Months)
+## Short-Term (Next 1-3 Months)
 Our immediate focus is on enhancing the core developer experience and improving context management.
 
 ## Resources & Tools - Optimizing Model Calls
@@ -256,13 +262,23 @@ Our immediate focus is on enhancing the core developer experience and improving 
 cached result instead of making a new API call.
 * Status: Planning
 
-🚀 Mid-Term (3-6 Months)
+## Mid-Term (3-6 Months)
 
 We plan to focus on adding API endpoints and improving overall interaction with the LLM. We will also maintain the Server to keep up with changes to 
 the Sauce Labs API, and to add new product lines as they are introduced.
 
-
 # Changelog
+## v1.0.3
+- Updated to use Apache License 2.0, rather than MIT
+- Slight tweaks to README
+
+## v1.0.2
+- Sending details to official MCP Registry
+- Adding Python 3.9 support
+
+## v1.0.1
+- Overhauled and updated the README for better install instructions
+
 ## v1.0.0
 - Initial release with full Sauce Labs API integration
 - Support for VDC and RDC platforms
@@ -290,7 +306,7 @@ POSSIBILITY OF SUCH DAMAGE.
 # General Use
 
 The MCP Server is provided as a free and open-source tool to facilitate interaction with publicly available APIs. Users 
-are free to modify and distribute the software under the terms of the MIT License.
+are free to modify and distribute the software under the terms of the Apache License 2.0.
 
 By using this software, you acknowledge that you are doing so at your own risk and that you are responsible for your 
 own compliance with all applicable laws and regulations.
