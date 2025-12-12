@@ -1,16 +1,17 @@
 [project]
 name = "sauce-api-mcp"
-version = "1.0.3"
-description = "MCP server for Sauce Labs API"
-authors = [
-    {name = "Marcus Merrell", email = "marcus.merrell@saucelabs.com"}
-]
+version = "1.1.0"
+description = "MCP servers for Sauce Labs APIs (Core & RDC OpenAPI)"
+authors = [{name = "Marcus Merrell", email = "mmerrell@gmail.com"}]
+license = {text = "Apache-2.0"}
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "httpx",
-    "pydantic",
-    "mcp"
+    "httpx>=0.24.0",
+    "pydantic>=2.0",
+    "mcp>=1.10.1",
+    "pyyaml>=6.0",
+    "fastmcp>=2.10.6",
 ]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
@@ -23,14 +24,15 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
 ]
 
+[project.scripts]
+sauce-api-mcp = "sauce_api_mcp.main:main"
+sauce-api-mcp-rdc = "sauce_api_mcp.rdc_openapi:main"
+
 [project.optional-dependencies]
 test = [
     "pytest",
     "pytest-asyncio"
 ]
-
-[project.scripts]
-sauce-api-mcp = "sauce_api_mcp.__main__:main"
 
 [build-system]
 requires = ["setuptools>=64", "wheel"]

@@ -6,7 +6,6 @@ from typing import Dict, Any, Union, Optional, List  # For type hinting dicts
 import httpx
 import sys
 import logging
-from urllib.parse import urlencode
 
 from .models import (
     AccountInfo,
@@ -1106,7 +1105,7 @@ class SauceLabsAgent:
         self, username: str, tunnel_id: str
     ) -> Dict[str, Any]:
         """
-        Returns information about the specified tunnel. The word "tunnel" in this context refers to usage of \
+        Returns information about the specified tunnel. The word "tunnel" in this context refers to usage of
         the Sauce Connect tool.
         :param username: Required. The authentication username of the owner of the requested tunnel.
         :param tunnel_id: Required. The unique identifier of the requested tunnel.
@@ -1443,6 +1442,5 @@ def main():
     # Run the FastMCP server instance
     mcp_server_instance.run(transport="stdio")
 
-# --- Main Application Setup ---
 if __name__ == "__main__":
     main()
