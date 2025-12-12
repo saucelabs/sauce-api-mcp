@@ -1,5 +1,7 @@
 # Sauce Labs MCP Server
 
+[//]: # (mcp-name: io.github.saucelabs-sample-test-frameworks/sauce-api-mcp)
+
 A Model Context Protocol (MCP) server that provides comprehensive integration with Sauce Labs testing platform. This 
 server enables AI assistants (LLM clients) to interact with Sauce Labs' device cloud, manage test jobs, analyze builds, 
 and monitor testing infrastructure directly through natural language conversations.
@@ -20,41 +22,43 @@ and monitor testing infrastructure directly through natural language conversatio
 - **Test Analytics**: Detailed job information including logs, videos, and performance metrics
 - **Team Collaboration**: Multi-team support with proper access controls
 
-## Installation
-
-In all instances, you'll need to rename `start_server.sh.template` to `start_server.sh`, and replace the `/path/to/sauce-api-mcp`
-to the correct absolute path in your environment.
-
 ### Prerequisites
-- Python 3.8+
+- Python 3.9+
+- `pip`
 - Sauce Labs account with API access
-- Claude Desktop application
+- Gemini CLI, Claude Desktop, Goose, or other LLM Client
 
-### For Claude Desktop (Mac)
+### For Claude Desktop (Mac/Linux) or Gemini CLI 
 
-1. **Install the MCP server**:
-   ```bash
-   # Clone the repository
-   git clone https://github.com/saucelabs/sauce-api-mcp.git
-   cd sauce-api-mcp
+1. **Install the MCP server and download the launch script**:
+
+    ```bash
+    pip install sauce-api-mcp
    
-   # Install dependencies
-   pip install -e .
-   ```
-   
-2. **Configure Claude Desktop**:
-  
-    Edit your Claude Desktop configuration file:
+    curl -o ~/sauce-mcp-launcher.sh https://raw.githubusercontent.com/saucelabs/sauce-api-mcp/refs/heads/main/sauce-mcp-launcher.sh
+    chmod +x ~/sauce-mcp-launcher.sh
+    ```
+ 
+2. **Configure the LLM Client (Claude, Gemini, etc)**:
+
+    For the client you're using you'll need to edit the config file. The location is slightly different for each, 
+    so here are some popular ones:
+
+***Claude***
 
     `~/Library/Application\ Support/Claude/claude_desktop_config.json`
 
+***Gemini CLI***
+
+   `~/.gemini/settings.json`
+
 3. **Add the Sauce Labs MCP server configuration**:
+
     ```json
     {
       "mcpServers": {
         "sauce-labs": {
-        "command": "python",
-        "args": ["/path/to/sauce-api-mcp/src/main.py"],
+        "command": "/path/to/tmp/sauce-mcp-launcher.sh",
           "env": {
             "SAUCE_USERNAME": "your-sauce-username",
             "SAUCE_ACCESS_KEY": "your-sauce-access-key"
@@ -63,84 +67,24 @@ to the correct absolute path in your environment.
       }
     }
     ```
-   
-4. **Restart Claude Desktop to load the new MCP server.**
+ 
+   The sauce-mcp-launcher.sh script is mostly for locating the python executable in  linux environment. If you have the 
+   sauce-api-mcp pypi library installed, you can invoke the library directly via `#exec $PYTHON_CMD -m sauce_api_mcp "$@"`.
 
-### For Claude Desktop (Windows) ###
+   ***Note: if you configure SAUCE_USERNAME and SAUCE_ACCESS_KEY as environment variables, you won't need to add them to the config block. 
 
-1. **Install the MCP server**:
-    ```cmd
-    # Clone the repository
-    git clone https://github.com/saucelabs/sauce-api-mcp.git
-    cd sauce-api-mcp.git
-
-    # Install dependencies
-    pip install -e . 
-    ```
-   
-2. **Configure Claude Desktop**:
-Edit your Claude Desktop configuration file:
-cmd# Open the config file (replace USERNAME with your Windows username)
-notepad %APPDATA%\Claude\claude_desktop_config.json
-
-3. **Add the Sauce Labs MCP server configuration**:
-    ```json
-    {
-      "mcpServers": {
-        "sauce-labs": {
-        "command": "python",
-        "args": ["/path/to/sauce-api-mcp/src/main.py"],
-          "env": {
-            "SAUCE_USERNAME": "your-sauce-username", 
-            "SAUCE_ACCESS_KEY": "your-sauce-access-key"
-          }
-        }
-      }
-    }
-    ```
-   
-4. **Restart Claude Desktop to load the new MCP server.**
-
-### For Claude Code (Terminal Integration)
-
-Claude Code allows you to use the Sauce Labs MCP server directly from your terminal for AI-assisted testing workflows.
-
-1. **Install Claude Code**:
-   ```bash
-   # Install Claude Code (if not already installed)
-   curl -fsSL https://claude.ai/claude-code/install.sh | sh
-   ```
-   
-2. Install the Sauce Labs MCP server:
-
-bash# Clone and install the MCP server
-git clone https://github.com/saucelabs/sauce-api-mcp.git
-cd sauce-api-mcp
-pip install -e .
-
-3. Configure LLM Client:
-
-#### [Claude Code](https://github.com/anthropics/claude-code)
-Create or edit your Claude Code configuration:
-bash# Create config directory if it doesn't exist
-mkdir -p ~/.config/claude-code
-
-code ~/.config/claude-code/config.json
-
-Add the Sauce Labs MCP server configuration:
-json{
-  "mcpServers": {
-    "sauce-labs": {
-      "command": "sauce-api-mcp.git",
-      "env": {
-        "SAUCE_USERNAME": "your-sauce-username",
-        "SAUCE_ACCESS_KEY": "your-sauce-access-key"
-      }
-    }
-  }
-}
+4. **Restart the client to load the new MCP server.**
 
 #### [Goose](https://block.github.io/goose/)
+
+First, install the MCP Server from `pip`, and download the launch script:
+
+   ```bash
+       pip install sauce-api-mcp
+      
+       curl -o ~/sauce-mcp-launcher.sh https://raw.githubusercontent.com/saucelabs/sauce-api-mcp/refs/heads/main/sauce-mcp-launcher.sh
+       chmod +x ~/sauce-mcp-launcher.sh
+   ```
 
 Within your `~/.config/goose/config.yaml` file, add the following extension:
 
@@ -148,7 +92,7 @@ Within your `~/.config/goose/config.yaml` file, add the following extension:
   sauce-api-mcp:
     args: []
     bundled: null
-    cmd: /<path>/sauce-api-mcp/start_server.sh
+    cmd: /<path>/sauce-mcp-launcher.sh
     description: Sauce Labs MCP for API
     enabled: true
     env_keys: []
@@ -157,17 +101,7 @@ Within your `~/.config/goose/config.yaml` file, add the following extension:
     timeout: 10
     type: stdio
 ```
-#### [Gemini CLI](https://github.com/google-gemini/gemini-cli)
-
-Within your `~/.gemini/settings.json` file, add the following:
-
-```json
-  "mcpServers": {
-    "sauce-api-mcp": {
-      "command": "/Users/marcusmerrell/Projects/sauce-api-mcp/start_server.sh",
-      "args": []
-    }
-```
+Be sure to edit the <path> to reflect your launch script location.
 
 #### Now you can ask questions like:
 * "Show me my recent test failures"
@@ -182,9 +116,8 @@ Within your `~/.gemini/settings.json` file, add the following:
 ### Optional Configuration ###
 
 SAUCE_REGION: Sauce Labs data center region (default: us-west-1)
-SAUCE_API_BASE: Custom API base URL (for enterprise accounts)
 
-Getting Your Sauce Labs Credentials
+# Getting Your Sauce Labs Credentials #
 
 1. Log into your Sauce Labs account
 2. Navigate to Account → User Settings
@@ -299,16 +232,6 @@ Verify the job ID is correct and belongs to your account
 Check if the job is from VDC vs RDC (different endpoints)
 Ensure the job hasn't expired due to retention policies
 
-### Debug Mode
-Enable debug logging by setting environment variables:
-
-    {
-      "env": {
-        "SAUCE_USERNAME": "your-username",
-        "SAUCE_ACCESS_KEY": "your-access-key",
-      }
-    }
-
 ## Getting Help
 
 - Sauce Labs Documentation: docs.saucelabs.com
@@ -316,7 +239,9 @@ Enable debug logging by setting environment variables:
 - Support: Contact Sauce Labs support through your account dashboard
 
 # License
-This project is licensed under the MIT License - see the LICENSE file for details.
+
+Apache 2.0 (versions 2.0+)
+Note: Versions prior to 1.0.3 were released under MIT License.
 
 # Roadmap
 
@@ -329,7 +254,7 @@ Want to help? We'd love to have you!
 * Find an existing issue in our **Issue Tracker** (../issues) that interests you.
 * Have a new idea? **Open a new issue** (../issues/new/choose) to discuss it with us.
 
-## 🎯 Short-Term (Next 1-3 Months)
+## Short-Term (Next 1-3 Months)
 Our immediate focus is on enhancing the core developer experience and improving context management.
 
 ## Resources & Tools - Optimizing Model Calls
@@ -337,13 +262,23 @@ Our immediate focus is on enhancing the core developer experience and improving 
 cached result instead of making a new API call.
 * Status: Planning
 
-🚀 Mid-Term (3-6 Months)
+## Mid-Term (3-6 Months)
 
 We plan to focus on adding API endpoints and improving overall interaction with the LLM. We will also maintain the Server to keep up with changes to 
 the Sauce Labs API, and to add new product lines as they are introduced.
 
-
 # Changelog
+## v1.0.3
+- Updated to use Apache License 2.0, rather than MIT
+- Slight tweaks to README
+
+## v1.0.2
+- Sending details to official MCP Registry
+- Adding Python 3.9 support
+
+## v1.0.1
+- Overhauled and updated the README for better install instructions
+
 ## v1.0.0
 - Initial release with full Sauce Labs API integration
 - Support for VDC and RDC platforms
@@ -371,7 +306,7 @@ POSSIBILITY OF SUCH DAMAGE.
 # General Use
 
 The MCP Server is provided as a free and open-source tool to facilitate interaction with publicly available APIs. Users 
-are free to modify and distribute the software under the terms of the MIT License.
+are free to modify and distribute the software under the terms of the Apache License 2.0.
 
 By using this software, you acknowledge that you are doing so at your own risk and that you are responsible for your 
 own compliance with all applicable laws and regulations.

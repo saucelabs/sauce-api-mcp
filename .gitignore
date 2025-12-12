@@ -24,3 +24,6 @@ htmlcov/
 
 # MyPy
 .mypy_cache/
+
+# MCP Registry tokens
+.*mcpregistry*
