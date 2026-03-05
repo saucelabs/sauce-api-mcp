@@ -122,10 +122,16 @@ def create_server(
     """Create the FastMCPOpenAPI server with manual tools for binary endpoints."""
     base_url = DATA_CENTERS[region.upper()]
 
+    async def _inject_mcp_headers(request: httpx.Request) -> None:
+        request.headers["X-SAUCE-MCP-SERVER"] = "rdc_dynamic"
+        request.headers["X-SAUCE-MCP-TRANSPORT"] = "stdio"
+        request.headers["X-SAUCE-MCP-USER"] = username
+
     client = httpx.AsyncClient(
         base_url=base_url,
         auth=httpx.BasicAuth(username, access_key),
         params={"ai": "rdc_openapi_mcp"},
+        event_hooks={"request": [_inject_mcp_headers]},
     )
 
     server = FastMCPOpenAPI(
