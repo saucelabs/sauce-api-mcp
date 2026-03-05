@@ -27,6 +27,7 @@ classifiers = [
 [project.scripts]
 sauce-api-mcp = "sauce_api_mcp.main:main"
 sauce-api-mcp-rdc = "sauce_api_mcp.rdc_openapi:main"
+sauce-api-mcp-rdc-dynamic = "sauce_api_mcp.rdc_dynamic:main"
 
 [project.optional-dependencies]
 test = [
