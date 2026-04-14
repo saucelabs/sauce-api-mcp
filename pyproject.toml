@@ -39,6 +39,17 @@ test = [
 requires = ["setuptools>=64", "wheel"]
 build-backend = "setuptools.build_meta"
 
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+asyncio_mode = "auto"
+addopts = "--strict-markers --verbose"
+markers = [
+    "slow: marks tests as slow (allocate real devices, cost minutes)",
+    "integration: marks tests as integration tests",
+    "live: marks tests that hit live Sauce Labs APIs (require credentials)",
+]
+
 [tool.setuptools.packages.find]
 where = ["src"]
 include = ["sauce_api_mcp*"]

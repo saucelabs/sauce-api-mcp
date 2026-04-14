@@ -38,7 +38,7 @@ from sauce_api_mcp.rdc_dynamic import (
     fetch_openapi_spec_sync,
 )
 
-from tests.conftest import live, HAS_CREDENTIALS, _load_credentials
+from tests.conftest import live, HAS_CREDENTIALS, _load_credentials, compat_get_tools, compat_call_tool
 
 USERNAME, ACCESS_KEY, REGION = _load_credentials()
 
@@ -376,7 +376,7 @@ def offline_tools(spec_from_url):
     server = create_server(spec_from_url, "fake", "fake", "US_WEST")
     loop = asyncio.new_event_loop()
     try:
-        return loop.run_until_complete(server.get_tools())
+        return loop.run_until_complete(compat_get_tools(server))
     finally:
         loop.close()
 
@@ -467,7 +467,7 @@ class TestPromptToLiveExecution:
             )
 
             # Execute against live API
-            result = await live_server._tool_manager.call_tool(
+            result = await compat_call_tool(live_server,
                 resolution.resolved_tool, {}
             )
             data = _parse_result(result)
@@ -496,7 +496,7 @@ class TestPromptToLiveExecution:
                 f"Prompt \"{prompt}\" resolved to {resolution.resolved_tool}"
             )
 
-            result = await live_server._tool_manager.call_tool("listSessions", {})
+            result = await compat_call_tool(live_server,"listSessions", {})
             data = _parse_result(result)
             assert isinstance(data, dict)
             assert "sessions" in data
@@ -515,7 +515,7 @@ class TestPromptToLiveExecution:
                 f"Prompt \"{prompt}\" resolved to {resolution.resolved_tool}"
             )
 
-            result = await live_server._tool_manager.call_tool(
+            result = await compat_call_tool(live_server,
                 "listAppiumVersions", {}
             )
             data = _parse_result(result)
@@ -536,7 +536,7 @@ class TestPromptToLiveExecution:
                 f"Prompt \"{prompt}\" resolved to {resolution.resolved_tool}"
             )
 
-            result = await live_server._tool_manager.call_tool(
+            result = await compat_call_tool(live_server,
                 resolution.resolved_tool, {}
             )
             data = _parse_result(result)
@@ -594,7 +594,7 @@ class TestPromptDrivenSessionLifecycle:
             )
             results["create_resolution"] = resolution.resolved_tool
 
-            result = await live_server._tool_manager.call_tool(
+            result = await compat_call_tool(live_server,
                 "createSession", {"device": {"os": "android"}}
             )
             data = _parse_result(result)
@@ -604,7 +604,7 @@ class TestPromptDrivenSessionLifecycle:
 
             # Wait for ACTIVE
             for _ in range(24):
-                r = await live_server._tool_manager.call_tool(
+                r = await compat_call_tool(live_server,
                     "getSession", {"sessionId": session_id}
                 )
                 state = _parse_result(r).get("state")
@@ -625,7 +625,7 @@ class TestPromptDrivenSessionLifecycle:
             )
             results["url_resolution"] = resolution.resolved_tool
 
-            await live_server._tool_manager.call_tool(
+            await compat_call_tool(live_server,
                 "openUrl",
                 {"sessionId": session_id, "url": "https://www.saucedemo.com"},
             )
@@ -639,7 +639,7 @@ class TestPromptDrivenSessionLifecycle:
             )
             results["shell_resolution"] = resolution.resolved_tool
 
-            shell_result = await live_server._tool_manager.call_tool(
+            shell_result = await compat_call_tool(live_server,
                 "executeShellCommand",
                 {"sessionId": session_id, "adbShellCommand": "echo prompt_test_ok"},
             )
@@ -667,7 +667,7 @@ class TestPromptDrivenSessionLifecycle:
         finally:
             if session_id:
                 try:
-                    await live_server._tool_manager.call_tool(
+                    await compat_call_tool(live_server,
                         "deleteSession", {"sessionId": session_id}
                     )
                 except Exception:
@@ -785,7 +785,7 @@ class TestResolutionQuality:
         counts = []
         for prompt in prompts:
             resolution = await resolve_prompt(prompt, offline_tools)
-            result = await live_server._tool_manager.call_tool(
+            result = await compat_call_tool(live_server,
                 resolution.resolved_tool, {}
             )
             data = _parse_result(result)

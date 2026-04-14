@@ -20,6 +20,41 @@ from sauce_api_mcp.rdc_openapi import SauceLabsRDCAgent
 
 
 # ---------------------------------------------------------------------------
+# fastmcp 2.x / 3.x compatibility
+# ---------------------------------------------------------------------------
+
+async def compat_get_tools(server) -> dict:
+    """Get tools as a {name: Tool} dict, compatible with fastmcp 2.x and 3.x.
+
+    - fastmcp 2.x: server.get_tools() → dict[str, Tool]
+    - fastmcp 3.x: server.list_tools() → list[Tool]  (get_tools removed)
+    """
+    if hasattr(server, "get_tools"):
+        result = await server.get_tools()
+        if isinstance(result, dict):
+            return result
+        # Shouldn't happen in 2.x, but handle it
+        return {t.name: t for t in result}
+    elif hasattr(server, "list_tools"):
+        tools_list = await server.list_tools()
+        return {t.name: t for t in tools_list}
+    raise AttributeError("Server has neither get_tools() nor list_tools()")
+
+
+async def compat_call_tool(server, name: str, arguments: dict):
+    """Call a tool by name, compatible with fastmcp 2.x and 3.x.
+
+    - fastmcp 2.x: server._tool_manager.call_tool(name, args)
+    - fastmcp 3.x: server.call_tool(name, args)
+    """
+    if hasattr(server, "call_tool") and callable(server.call_tool):
+        return await server.call_tool(name, arguments)
+    elif hasattr(server, "_tool_manager"):
+        return await server._tool_manager.call_tool(name, arguments)
+    raise AttributeError("Server has neither call_tool() nor _tool_manager")
+
+
+# ---------------------------------------------------------------------------
 # Credential helpers
 # ---------------------------------------------------------------------------
 
