@@ -41,7 +41,7 @@ from sauce_api_mcp.rdc_dynamic import (
     route_map_fn,
 )
 
-from tests.conftest import live, HAS_CREDENTIALS, _load_credentials
+from tests.conftest import live, HAS_CREDENTIALS, _load_credentials, compat_get_tools, compat_call_tool
 
 USERNAME, ACCESS_KEY, REGION = _load_credentials()
 
@@ -69,6 +69,28 @@ def _find_refs(schema, path="root"):
 def _parse_tool_result(result):
     """Extract parsed JSON from a ToolResult."""
     return json.loads(result.content[0].text)
+
+
+def _get_internal_tools(server):
+    """Get raw tool objects from a server, compat across fastmcp 2.x/3.x."""
+    # fastmcp 2.x
+    if hasattr(server, "_tool_manager") and hasattr(server._tool_manager, "_tools"):
+        return server._tool_manager._tools
+    # fastmcp 3.x — tools stored in provider
+    if hasattr(server, "_local_provider"):
+        provider = server._local_provider
+        if hasattr(provider, "_tools"):
+            return provider._tools
+        if hasattr(provider, "tools"):
+            return provider.tools
+    # Fallback: use the sync list via async helper
+    import asyncio
+    loop = asyncio.new_event_loop()
+    try:
+        tools = loop.run_until_complete(compat_get_tools(server))
+        return tools
+    finally:
+        loop.close()
 
 
 # ---------------------------------------------------------------------------
@@ -118,7 +140,9 @@ def offline_server_and_requests(spec_from_url):
 
     # Replace the httpx client's transport with a mock
     # The client is stored on the server and passed to each OpenAPITool
-    for tool in server._tool_manager._tools.values():
+    internal_tools = _get_internal_tools(server)
+    tools_iter = internal_tools.values() if isinstance(internal_tools, dict) else internal_tools
+    for tool in tools_iter:
         if hasattr(tool, "_client"):
             tool._client._transport = httpx.MockTransport(capture_handler)
             break
@@ -206,7 +230,7 @@ class TestToolGeneration:
     @pytest.mark.asyncio
     async def test_total_tool_count(self, offline_server):
         """Server should have 36 tools (33 auto + 3 manual)."""
-        tools = await offline_server.get_tools()
+        tools = await compat_get_tools(offline_server)
         assert len(tools) == 36, (
             f"Expected 36 tools, got {len(tools)}. Names: {sorted(tools.keys())}"
         )
@@ -214,7 +238,7 @@ class TestToolGeneration:
     @pytest.mark.asyncio
     async def test_excluded_paths_not_auto_generated(self, offline_server):
         """The 3 binary endpoints should not appear as auto-generated tools."""
-        tools = await offline_server.get_tools()
+        tools = await compat_get_tools(offline_server)
         for name, tool in tools.items():
             if hasattr(tool, "_route"):
                 assert tool._route.path not in EXCLUDED_PATHS, (
@@ -224,7 +248,7 @@ class TestToolGeneration:
     @pytest.mark.asyncio
     async def test_manual_tools_registered(self, offline_server):
         """The 3 manual tools should be present."""
-        tools = await offline_server.get_tools()
+        tools = await compat_get_tools(offline_server)
         manual_names = {"push_file_to_device", "take_screenshot", "pull_file_from_device"}
         for name in manual_names:
             assert name in tools, f"Manual tool '{name}' not found in {sorted(tools.keys())}"
@@ -232,7 +256,7 @@ class TestToolGeneration:
     @pytest.mark.asyncio
     async def test_expected_tool_names_present(self, offline_server):
         """Key auto-generated tool names should be present."""
-        tools = await offline_server.get_tools()
+        tools = await compat_get_tools(offline_server)
         expected = {
             "listDevices", "listDeviceStatus", "createSession", "getSession",
             "deleteSession", "listSessions", "executeShellCommand", "launchApp",
@@ -250,7 +274,7 @@ class TestToolGeneration:
     @pytest.mark.asyncio
     async def test_all_tools_have_descriptions(self, offline_server):
         """Every tool should have a non-empty description."""
-        tools = await offline_server.get_tools()
+        tools = await compat_get_tools(offline_server)
         for name, tool in tools.items():
             desc = tool.description if hasattr(tool, "description") else ""
             assert desc and len(desc) > 0, f"Tool '{name}' has no description"
@@ -258,7 +282,7 @@ class TestToolGeneration:
     @pytest.mark.asyncio
     async def test_all_auto_tools_have_object_parameters(self, offline_server):
         """Auto-generated tools should have parameters with type=object."""
-        tools = await offline_server.get_tools()
+        tools = await compat_get_tools(offline_server)
         manual_names = {"push_file_to_device", "take_screenshot", "pull_file_from_device"}
         for name, tool in tools.items():
             if name in manual_names:
@@ -272,7 +296,7 @@ class TestToolGeneration:
     @pytest.mark.asyncio
     async def test_no_duplicate_tool_names(self, offline_server):
         """All tool keys should be unique (dict enforces this, but verify count)."""
-        tools = await offline_server.get_tools()
+        tools = await compat_get_tools(offline_server)
         names = list(tools.keys())
         assert len(names) == len(set(names)), "Duplicate tool names found"
 
@@ -287,7 +311,7 @@ class TestToolSchemaValidation:
     @pytest.mark.asyncio
     async def test_no_refs_in_any_tool_parameters(self, offline_server):
         """No $ref or $defs should remain in any tool's parameter schema."""
-        tools = await offline_server.get_tools()
+        tools = await compat_get_tools(offline_server)
         all_issues = []
         for name, tool in tools.items():
             params = tool.parameters if hasattr(tool, "parameters") else {}
@@ -301,7 +325,7 @@ class TestToolSchemaValidation:
     @pytest.mark.asyncio
     async def test_session_tools_require_session_id(self, offline_server):
         """Tools that operate on sessions must have sessionId as required."""
-        tools = await offline_server.get_tools()
+        tools = await compat_get_tools(offline_server)
         session_tools = [
             "getSession", "deleteSession", "executeShellCommand",
             "launchApp", "openUrl", "installApp", "listAppInstallations",
@@ -319,7 +343,7 @@ class TestToolSchemaValidation:
     @pytest.mark.asyncio
     async def test_create_session_has_body_params(self, offline_server):
         """createSession should have device/configuration body params."""
-        tools = await offline_server.get_tools()
+        tools = await compat_get_tools(offline_server)
         params = tools["createSession"].parameters
         props = params.get("properties", {})
         assert "device" in props or "configuration" in props, (
@@ -329,7 +353,7 @@ class TestToolSchemaValidation:
     @pytest.mark.asyncio
     async def test_list_device_status_has_query_params(self, offline_server):
         """listDeviceStatus should have state, privateOnly, deviceName."""
-        tools = await offline_server.get_tools()
+        tools = await compat_get_tools(offline_server)
         params = tools["listDeviceStatus"].parameters
         props = params.get("properties", {})
         assert "state" in props, f"Missing 'state'. Has: {list(props.keys())}"
@@ -338,7 +362,7 @@ class TestToolSchemaValidation:
     @pytest.mark.asyncio
     async def test_proxy_tools_have_all_path_params(self, offline_server):
         """Proxy tools should require sessionId, targetHost, targetPort, targetPath."""
-        tools = await offline_server.get_tools()
+        tools = await compat_get_tools(offline_server)
         for proxy_tool in ["proxyGet", "proxyPost", "proxyDelete"]:
             if proxy_tool not in tools:
                 continue
@@ -427,7 +451,7 @@ class TestManualTools:
     @pytest.mark.asyncio
     async def test_manual_tool_parameters(self, offline_server):
         """Manual tools have the expected parameter names."""
-        tools = await offline_server.get_tools()
+        tools = await compat_get_tools(offline_server)
 
         push_params = tools["push_file_to_device"].parameters["properties"]
         assert "sessionId" in push_params
@@ -446,7 +470,7 @@ class TestManualTools:
     async def test_manual_tools_not_openapi_tools(self, offline_server):
         """Manual tools should not be OpenAPITool instances."""
         from fastmcp.server.openapi.components import OpenAPITool
-        tools = await offline_server.get_tools()
+        tools = await compat_get_tools(offline_server)
         for name in ["push_file_to_device", "take_screenshot", "pull_file_from_device"]:
             assert not isinstance(tools[name], OpenAPITool), (
                 f"'{name}' should be a regular Tool, not OpenAPITool"
@@ -455,7 +479,7 @@ class TestManualTools:
     @pytest.mark.asyncio
     async def test_push_file_nonexistent_returns_error(self, offline_server):
         """push_file_to_device with nonexistent file returns error dict."""
-        result = await offline_server._tool_manager.call_tool(
+        result = await compat_call_tool(offline_server,
             "push_file_to_device",
             {"sessionId": "fake", "local_file_path": "/nonexistent/file.txt"}
         )
@@ -466,7 +490,7 @@ class TestManualTools:
     @pytest.mark.asyncio
     async def test_pull_file_has_optional_save_path(self, offline_server):
         """pull_file_from_device's local_save_path should not be required."""
-        tools = await offline_server.get_tools()
+        tools = await compat_get_tools(offline_server)
         required = tools["pull_file_from_device"].parameters.get("required", [])
         assert "local_save_path" not in required
 
@@ -483,7 +507,7 @@ class TestHeaderInjection:
         """Requests should carry X-SAUCE-MCP-* headers."""
         captured_requests.clear()
         try:
-            await offline_server._tool_manager.call_tool("listDeviceStatus", {})
+            await compat_call_tool(offline_server,"listDeviceStatus", {})
         except Exception:
             pass  # Mock may not return valid data
 
@@ -498,7 +522,7 @@ class TestHeaderInjection:
         """Requests should include Basic Auth header."""
         captured_requests.clear()
         try:
-            await offline_server._tool_manager.call_tool("listDeviceStatus", {})
+            await compat_call_tool(offline_server,"listDeviceStatus", {})
         except Exception:
             pass
 
@@ -512,8 +536,9 @@ class TestHeaderInjection:
     def test_ai_query_param_configured_on_client(self, spec_from_url):
         """The httpx client should have ai=rdc_openapi_mcp in default params."""
         server = create_server(spec_from_url, "key", "user", "EU_CENTRAL")
-        # The ai param is set as a default param on the client
-        for tool in server._tool_manager._tools.values():
+        internal_tools = _get_internal_tools(server)
+        tools_iter = internal_tools.values() if isinstance(internal_tools, dict) else internal_tools
+        for tool in tools_iter:
             if hasattr(tool, "_client"):
                 client_params = tool._client.params
                 assert "ai" in client_params, f"Client params: {dict(client_params)}"
@@ -523,8 +548,9 @@ class TestHeaderInjection:
     def test_base_url_matches_region(self, spec_from_url):
         """EU_CENTRAL server should use the eu-central-1 base URL."""
         server = create_server(spec_from_url, "key", "user", "EU_CENTRAL")
-        # Check client base URL
-        for tool in server._tool_manager._tools.values():
+        internal_tools = _get_internal_tools(server)
+        tools_iter = internal_tools.values() if isinstance(internal_tools, dict) else internal_tools
+        for tool in tools_iter:
             if hasattr(tool, "_client"):
                 base = str(tool._client.base_url)
                 assert "eu-central-1" in base, f"Base URL: {base}"
@@ -543,7 +569,7 @@ class TestLiveToolInvocation:
     @pytest.mark.asyncio
     async def test_list_device_status(self, live_dynamic_server):
         """listDeviceStatus returns a JSON dict with devices."""
-        result = await live_dynamic_server._tool_manager.call_tool(
+        result = await compat_call_tool(live_dynamic_server,
             "listDeviceStatus", {}
         )
         data = _parse_tool_result(result)
@@ -555,7 +581,7 @@ class TestLiveToolInvocation:
     @pytest.mark.asyncio
     async def test_list_devices(self, live_dynamic_server):
         """listDevices returns device catalog."""
-        result = await live_dynamic_server._tool_manager.call_tool(
+        result = await compat_call_tool(live_dynamic_server,
             "listDevices", {}
         )
         data = _parse_tool_result(result)
@@ -568,7 +594,7 @@ class TestLiveToolInvocation:
     @pytest.mark.asyncio
     async def test_list_sessions(self, live_dynamic_server):
         """listSessions returns a sessions dict."""
-        result = await live_dynamic_server._tool_manager.call_tool(
+        result = await compat_call_tool(live_dynamic_server,
             "listSessions", {}
         )
         data = _parse_tool_result(result)
@@ -578,7 +604,7 @@ class TestLiveToolInvocation:
     @pytest.mark.asyncio
     async def test_list_appium_versions(self, live_dynamic_server):
         """listAppiumVersions returns version info."""
-        result = await live_dynamic_server._tool_manager.call_tool(
+        result = await compat_call_tool(live_dynamic_server,
             "listAppiumVersions", {}
         )
         data = _parse_tool_result(result)
@@ -591,7 +617,7 @@ class TestLiveToolInvocation:
         """getSession with invalid ID raises ToolError."""
         from fastmcp.exceptions import ToolError
         with pytest.raises(ToolError, match="404"):
-            await live_dynamic_server._tool_manager.call_tool(
+            await compat_call_tool(live_dynamic_server,
                 "getSession",
                 {"sessionId": "00000000-0000-0000-0000-000000000000"}
             )
@@ -599,7 +625,7 @@ class TestLiveToolInvocation:
     @pytest.mark.asyncio
     async def test_tool_result_structure(self, live_dynamic_server):
         """ToolResult has .content list with TextContent objects."""
-        result = await live_dynamic_server._tool_manager.call_tool(
+        result = await compat_call_tool(live_dynamic_server,
             "listDeviceStatus", {}
         )
         assert hasattr(result, "content")
@@ -613,7 +639,7 @@ class TestLiveToolInvocation:
     @pytest.mark.asyncio
     async def test_list_device_status_with_filter(self, live_dynamic_server):
         """listDeviceStatus with state=AVAILABLE filter works."""
-        result = await live_dynamic_server._tool_manager.call_tool(
+        result = await compat_call_tool(live_dynamic_server,
             "listDeviceStatus", {"state": "AVAILABLE"}
         )
         data = _parse_tool_result(result)
@@ -622,7 +648,7 @@ class TestLiveToolInvocation:
     @pytest.mark.asyncio
     async def test_list_sessions_with_state_filter(self, live_dynamic_server):
         """listSessions with state filter works."""
-        result = await live_dynamic_server._tool_manager.call_tool(
+        result = await compat_call_tool(live_dynamic_server,
             "listSessions", {"state": "CLOSED"}
         )
         data = _parse_tool_result(result)
@@ -650,7 +676,7 @@ class TestLiveSessionLifecycle:
         session_id = None
         try:
             # Step 1: Create session
-            result = await live_dynamic_server._tool_manager.call_tool(
+            result = await compat_call_tool(live_dynamic_server,
                 "createSession",
                 {"device": {"os": "android"}}
             )
@@ -660,7 +686,7 @@ class TestLiveSessionLifecycle:
 
             # Step 2: Poll until ACTIVE
             for _ in range(24):  # 2 min max
-                result = await live_dynamic_server._tool_manager.call_tool(
+                result = await compat_call_tool(live_dynamic_server,
                     "getSession", {"sessionId": session_id}
                 )
                 session_data = _parse_tool_result(result)
@@ -674,7 +700,7 @@ class TestLiveSessionLifecycle:
                 pytest.fail("Session did not become ACTIVE within 2 minutes")
 
             # Step 3: Open a URL
-            result = await live_dynamic_server._tool_manager.call_tool(
+            result = await compat_call_tool(live_dynamic_server,
                 "openUrl",
                 {"sessionId": session_id, "url": "https://www.saucedemo.com"}
             )
@@ -682,7 +708,7 @@ class TestLiveSessionLifecycle:
             # Just verify it didn't raise
 
             # Step 4: Execute shell command (Android only)
-            result = await live_dynamic_server._tool_manager.call_tool(
+            result = await compat_call_tool(live_dynamic_server,
                 "executeShellCommand",
                 {"sessionId": session_id, "adbShellCommand": "echo hello_from_mcp"}
             )
@@ -693,7 +719,7 @@ class TestLiveSessionLifecycle:
             # Step 5: Always close the session
             if session_id:
                 try:
-                    await live_dynamic_server._tool_manager.call_tool(
+                    await compat_call_tool(live_dynamic_server,
                         "deleteSession", {"sessionId": session_id}
                     )
                 except Exception:
@@ -702,7 +728,7 @@ class TestLiveSessionLifecycle:
                 # Step 6: Verify session is closed
                 await asyncio.sleep(2)
                 try:
-                    result = await live_dynamic_server._tool_manager.call_tool(
+                    result = await compat_call_tool(live_dynamic_server,
                         "getSession", {"sessionId": session_id}
                     )
                     final_data = _parse_tool_result(result)
@@ -717,7 +743,7 @@ class TestLiveSessionLifecycle:
         """
         session_id = None
         try:
-            result = await live_dynamic_server._tool_manager.call_tool(
+            result = await compat_call_tool(live_dynamic_server,
                 "createSession",
                 {"device": {"os": "ios"}}
             )
@@ -727,7 +753,7 @@ class TestLiveSessionLifecycle:
 
             # Poll until ACTIVE
             for _ in range(24):
-                result = await live_dynamic_server._tool_manager.call_tool(
+                result = await compat_call_tool(live_dynamic_server,
                     "getSession", {"sessionId": session_id}
                 )
                 session_data = _parse_tool_result(result)
@@ -740,7 +766,7 @@ class TestLiveSessionLifecycle:
                 pytest.fail("Session did not become ACTIVE")
 
             # Open URL
-            await live_dynamic_server._tool_manager.call_tool(
+            await compat_call_tool(live_dynamic_server,
                 "openUrl",
                 {"sessionId": session_id, "url": "https://www.saucedemo.com"}
             )
@@ -748,7 +774,7 @@ class TestLiveSessionLifecycle:
         finally:
             if session_id:
                 try:
-                    await live_dynamic_server._tool_manager.call_tool(
+                    await compat_call_tool(live_dynamic_server,
                         "deleteSession", {"sessionId": session_id}
                     )
                 except Exception:
@@ -767,7 +793,7 @@ class TestErrorHandling:
         """Calling a non-existent tool should raise NotFoundError."""
         from fastmcp.exceptions import NotFoundError
         with pytest.raises(NotFoundError):
-            await offline_server._tool_manager.call_tool(
+            await compat_call_tool(offline_server,
                 "nonExistentToolName", {}
             )
 
@@ -785,7 +811,7 @@ class TestErrorHandling:
             "paths": {},
         }
         server = create_server(minimal_spec, "key", "user", "US_WEST")
-        tools = await server.get_tools()
+        tools = await compat_get_tools(server)
         assert len(tools) == 3, (
             f"Expected 3 manual tools, got {len(tools)}: {sorted(tools.keys())}"
         )
@@ -884,7 +910,7 @@ class TestProductionCodeIssues:
         This means calling launchApp with just bundleId or packageName
         would fail validation because 'id' is required.
         """
-        tools = await offline_server.get_tools()
+        tools = await compat_get_tools(offline_server)
         if "launchApp" not in tools:
             pytest.skip("launchApp not in tools")
 
