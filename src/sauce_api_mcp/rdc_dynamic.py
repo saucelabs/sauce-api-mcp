@@ -63,15 +63,72 @@ def _validate_path(file_path: str) -> str:
     return resolved
 
 
+SPEC_CACHE_DIR = os.path.join(os.path.expanduser("~"), ".sauce-mcp")
+SPEC_CACHE_FILE = os.path.join(SPEC_CACHE_DIR, "rdc-access-api-spec.yaml")
+MAX_FETCH_RETRIES = 3
+
+
+def _cache_spec(spec_text: str) -> None:
+    """Save spec text to local cache for fallback."""
+    try:
+        os.makedirs(SPEC_CACHE_DIR, exist_ok=True)
+        with open(SPEC_CACHE_FILE, "w") as f:
+            f.write(spec_text)
+        logging.info("Cached OpenAPI spec to %s", SPEC_CACHE_FILE)
+    except OSError as e:
+        logging.warning("Failed to cache spec: %s", e)
+
+
+def _load_cached_spec() -> dict | None:
+    """Load spec from local cache if available."""
+    if os.path.exists(SPEC_CACHE_FILE):
+        try:
+            with open(SPEC_CACHE_FILE) as f:
+                spec = yaml.safe_load(f)
+            logging.info("Loaded cached OpenAPI spec from %s", SPEC_CACHE_FILE)
+            return spec
+        except Exception as e:
+            logging.warning("Failed to load cached spec: %s", e)
+    return None
+
+
 def fetch_openapi_spec_sync(spec_url: str) -> dict:
-    """Fetch and parse the OpenAPI YAML spec from a URL or local file."""
-    if spec_url.startswith(("http://", "https://")):
-        response = httpx.get(spec_url, timeout=30.0)
-        response.raise_for_status()
-        return yaml.safe_load(response.text)
-    else:
+    """Fetch and parse the OpenAPI YAML spec from a URL or local file.
+
+    For remote URLs, retries up to MAX_FETCH_RETRIES times and caches
+    the spec locally. Falls back to the cached copy if all retries fail.
+    """
+    if not spec_url.startswith(("http://", "https://")):
         with open(spec_url) as f:
             return yaml.safe_load(f)
+
+    last_error = None
+    for attempt in range(1, MAX_FETCH_RETRIES + 1):
+        try:
+            response = httpx.get(spec_url, timeout=30.0)
+            response.raise_for_status()
+            spec = yaml.safe_load(response.text)
+            _cache_spec(response.text)
+            return spec
+        except Exception as e:
+            last_error = e
+            logging.warning(
+                "Spec fetch attempt %d/%d failed: %s",
+                attempt, MAX_FETCH_RETRIES, e,
+            )
+
+    logging.error(
+        "All %d fetch attempts failed. Trying cached spec.", MAX_FETCH_RETRIES
+    )
+    cached = _load_cached_spec()
+    if cached is not None:
+        return cached
+
+    raise RuntimeError(
+        f"Failed to fetch OpenAPI spec from {spec_url} after "
+        f"{MAX_FETCH_RETRIES} retries and no cached copy available. "
+        f"Last error: {last_error}"
+    )
 
 
 def resolve_refs(schema: dict) -> dict:
