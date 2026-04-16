@@ -94,8 +94,7 @@ def _load_cached_spec() -> dict | None:
 
 
 # Response shaping limits
-MAX_RESPONSE_ITEMS = 25
-MAX_RESPONSE_CHARS = 50_000  # ~12K tokens
+MAX_RESPONSE_ITEMS = int(os.getenv("SAUCE_MCP_MAX_RESPONSE_ITEMS", "100"))
 
 
 def shape_response(data):
