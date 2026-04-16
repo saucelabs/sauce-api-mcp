@@ -44,6 +44,24 @@ EXCLUDED_PATHS = {
     "/sessions/{sessionId}/device/pullFile",
 }
 
+# Safe directory for file operations (push/pull)
+SAFE_FILE_DIR = os.path.join(os.path.expanduser("~"), ".sauce-mcp", "files")
+
+
+def _validate_path(file_path: str) -> str:
+    """Validate that a file path resolves within SAFE_FILE_DIR.
+
+    Returns the resolved absolute path if safe, raises ValueError otherwise.
+    """
+    os.makedirs(SAFE_FILE_DIR, exist_ok=True)
+    resolved = os.path.realpath(os.path.join(SAFE_FILE_DIR, os.path.basename(file_path)))
+    if not resolved.startswith(os.path.realpath(SAFE_FILE_DIR)):
+        raise ValueError(
+            f"Path '{file_path}' resolves outside the safe directory. "
+            f"Files are restricted to {SAFE_FILE_DIR}"
+        )
+    return resolved
+
 
 def fetch_openapi_spec_sync(spec_url: str) -> dict:
     """Fetch and parse the OpenAPI YAML spec from a URL or local file."""
@@ -155,12 +173,18 @@ def create_server(
 
         :param sessionId: The id of the device session.
         :param local_file_path: Path to the local file to upload.
+            Must be within ~/.sauce-mcp/files/ for security.
         :param device_path: Optional target path on the device.
         """
-        if not os.path.exists(local_file_path):
-            return {"error": f"File not found: {local_file_path}"}
+        try:
+            safe_path = _validate_path(local_file_path)
+        except ValueError as e:
+            return {"error": str(e)}
 
-        with open(local_file_path, "rb") as f:
+        if not os.path.exists(safe_path):
+            return {"error": f"File not found: {safe_path}"}
+
+        with open(safe_path, "rb") as f:
             files = {"file": (os.path.basename(local_file_path), f)}
             data: Dict[str, str] = {}
             if device_path:
@@ -213,8 +237,15 @@ def create_server(
         :param sessionId: The id of the device session.
         :param device_file_path: Path of the file on the device.
         :param local_save_path: Optional local path to save the file.
-            Defaults to the filename in the current directory.
+            Defaults to the filename in ~/.sauce-mcp/files/.
         """
+        try:
+            safe_path = _validate_path(
+                local_save_path if local_save_path else device_file_path
+            )
+        except ValueError as e:
+            return {"error": str(e)}
+
         response = await client.post(
             f"sessions/{sessionId}/device/pullFile",
             json={"filePath": device_file_path},
@@ -225,14 +256,11 @@ def create_server(
                 "details": response.text,
             }
 
-        if local_save_path is None:
-            local_save_path = os.path.basename(device_file_path)
-
-        with open(local_save_path, "wb") as f:
+        with open(safe_path, "wb") as f:
             f.write(response.content)
 
         return {
-            "saved_to": os.path.abspath(local_save_path),
+            "saved_to": safe_path,
             "size": len(response.content),
         }
 
