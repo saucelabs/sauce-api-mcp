@@ -9,6 +9,7 @@ excluded from auto-generation and implemented manually.
 """
 
 import base64
+import json as json_mod
 import os
 import sys
 import logging
@@ -90,6 +91,38 @@ def _load_cached_spec() -> dict | None:
         except Exception as e:
             logging.warning("Failed to load cached spec: %s", e)
     return None
+
+
+# Response shaping limits
+MAX_RESPONSE_ITEMS = int(os.getenv("SAUCE_MCP_MAX_RESPONSE_ITEMS", "100"))
+
+
+def shape_response(data):
+    """Truncate large API responses to stay within LLM context budget."""
+    if isinstance(data, list) and len(data) > MAX_RESPONSE_ITEMS:
+        return {
+            "items": data[:MAX_RESPONSE_ITEMS],
+            "truncated": True,
+            "total_count": len(data),
+            "message": (
+                f"Response truncated to {MAX_RESPONSE_ITEMS} of {len(data)} items. "
+                "Use filtering parameters to narrow results."
+            ),
+        }
+    if isinstance(data, dict):
+        for key, value in data.items():
+            if isinstance(value, list) and len(value) > MAX_RESPONSE_ITEMS:
+                data = dict(data)  # shallow copy
+                total = len(value)
+                data[key] = value[:MAX_RESPONSE_ITEMS]
+                data["truncated"] = True
+                data["total_count"] = total
+                data["message"] = (
+                    f"Response truncated to {MAX_RESPONSE_ITEMS} of {total} items. "
+                    "Use filtering parameters to narrow results."
+                )
+                return data
+    return data
 
 
 def fetch_openapi_spec_sync(spec_url: str) -> dict:
@@ -202,11 +235,28 @@ def create_server(
         request.headers["X-SAUCE-MCP-TRANSPORT"] = "stdio"
         request.headers["X-SAUCE-MCP-USER"] = username
 
+    async def _shape_response(response: httpx.Response) -> None:
+        """Intercept large responses and truncate before they reach the LLM."""
+        await response.aread()
+        content_type = response.headers.get("content-type", "")
+        if "json" not in content_type:
+            return  # Don't touch binary responses (screenshots, files)
+        try:
+            data = response.json()
+            shaped = shape_response(data)
+            if shaped is not data:
+                response._content = json_mod.dumps(shaped).encode("utf-8")
+        except Exception:
+            pass  # If parsing fails, let it through unchanged
+
     client = httpx.AsyncClient(
         base_url=base_url,
         auth=httpx.BasicAuth(username, access_key),
         params={"ai": "rdc_openapi_mcp"},
-        event_hooks={"request": [_inject_mcp_headers]},
+        event_hooks={
+            "request": [_inject_mcp_headers],
+            "response": [_shape_response],
+        },
     )
 
     server = FastMCPOpenAPI(
