@@ -317,7 +317,7 @@ def create_server(
         mcp_component_fn=_fix_component_schemas,
     )
 
-    # --- Manual tools for excluded binary endpoints ---
+    # --- Manual tools for excluded endpoints ---
 
     @server.tool()
     async def createSession(
