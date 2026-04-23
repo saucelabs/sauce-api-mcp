@@ -21,6 +21,20 @@ DATA_CENTERS = {
     "EU_CENTRAL": "https://api.eu-central-1.saucelabs.com/",
 }
 
+SAFE_FILE_DIR = os.path.join(os.path.expanduser("~"), ".sauce-mcp", "files")
+
+
+def _validate_path(file_path: str) -> str:
+    """Validate that a file path resolves within SAFE_FILE_DIR."""
+    os.makedirs(SAFE_FILE_DIR, exist_ok=True)
+    resolved = os.path.realpath(os.path.join(SAFE_FILE_DIR, os.path.basename(file_path)))
+    if not resolved.startswith(os.path.realpath(SAFE_FILE_DIR)):
+        raise ValueError(
+            f"Path '{file_path}' resolves outside the safe directory. "
+            f"Files are restricted to {SAFE_FILE_DIR}"
+        )
+    return resolved
+
 logging.basicConfig(
     level=logging.INFO,
     stream=sys.stderr,
@@ -1325,6 +1339,7 @@ class SauceLabsAgent:
                  400	Bad Request.
                  404	Not found.
         """
+        file_path = _validate_path(file_path)
         if not os.path.exists(file_path):
             raise ValueError(f"File not found: {file_path}")
 
