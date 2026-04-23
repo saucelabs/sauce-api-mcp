@@ -11,12 +11,13 @@ hand-written instead:
     the HTTP verb as a parameter, instead of six separate tools.
 """
 
+import asyncio
 import base64
 import json as json_mod
 import os
 import sys
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Literal, Optional
 
 import httpx
 import yaml
@@ -46,6 +47,10 @@ DEFAULT_SPEC_URL = (
 # - proxy/http/...: collapsed into a single `proxy_http` tool below instead of
 #   six method-specific tools (proxyGet, proxyPost, proxyPut, proxyDelete,
 #   proxyHead, proxyOptions).
+# - POST /sessions and GET /sessions/{sessionId}: replaced by a single
+#   hand-written `create_session` tool that creates the session and polls the
+#   backend until the device is ready (or fails), so callers don't have to
+#   drive the polling loop themselves.
 EXCLUDED_PATHS = {
     "/sessions/{sessionId}/device/pushFile",
     "/sessions/{sessionId}/device/takeScreenshot",
@@ -53,8 +58,38 @@ EXCLUDED_PATHS = {
     "/sessions/{sessionId}/device/proxy/http/{targetHost}/{targetPort}/{targetPath}",
 }
 
+# Operation IDs excluded from auto-generation. Used for endpoints where we want
+# to suppress a specific HTTP method on a path while keeping others (e.g. we
+# hand-roll POST /sessions and GET /sessions/{sessionId} but keep listSessions
+# and deleteSession).
+EXCLUDED_OPERATION_IDS = {
+    "createSession",
+    "getSession",
+}
+
+# Session polling configuration for the hand-written create_session tool.
+# The backend transitions a newly created session through PENDING -> CREATING ->
+# ACTIVE. If device allocation fails it transitions to ERRORED. We poll until we
+# leave the pre-ready states or the timeout elapses.
+SESSION_POLL_INTERVAL_SECONDS = 2.0
+SESSION_POLL_TIMEOUT_SECONDS = 60.0
+SESSION_PENDING_STATES = {"PENDING", "CREATING"}
+
 # Safe directory for file operations (push/pull)
 SAFE_FILE_DIR = os.path.join(os.path.expanduser("~"), ".sauce-mcp", "files")
+
+
+def _safe_json(response: httpx.Response) -> Any:
+    """Return the response body as parsed JSON, or fall back to text.
+
+    Some error responses use ``application/problem+json``; others may have no
+    JSON body at all (e.g. HTML from a gateway). Callers that just want to
+    surface the backend's explanation shouldn't have to care.
+    """
+    try:
+        return response.json()
+    except Exception:
+        return response.text
 
 
 def _validate_path(file_path: str) -> str:
@@ -215,8 +250,10 @@ def resolve_refs(schema: dict) -> dict:
 
 
 def route_map_fn(route: HTTPRoute, mcp_type: MCPType) -> MCPType | None:
-    """Exclude binary/multipart endpoints from auto-generation."""
+    """Exclude binary/multipart endpoints and hand-rolled operations."""
     if route.path in EXCLUDED_PATHS:
+        return MCPType.EXCLUDE
+    if getattr(route, "operation_id", None) in EXCLUDED_OPERATION_IDS:
         return MCPType.EXCLUDE
     return None
 
@@ -276,6 +313,166 @@ def create_server(
     )
 
     # --- Manual tools for excluded binary endpoints ---
+
+    @server.tool()
+    async def createSession(
+        os: Literal["android", "ios"],
+        deviceName: Optional[str] = None,
+        sessionDuration: Optional[str] = None,
+        tunnelName: Optional[str] = None,
+        tunnelOwner: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Allocate a real device and return an ACTIVE session ready to use.
+
+        This is the one-shot entry point for starting a real-device session.
+        The returned payload contains the ``id``, ``state``, and the URLs
+        needed to drive the device (Appium endpoint, live view, websocket
+        channels). Use that ``id`` as ``sessionId`` for every subsequent
+        tool call, and close it with ``deleteSession`` when finished.
+
+        Mapping the user's request to parameters:
+
+        - The user's device brand or model implies ``os``. Apple hardware
+          (``iPhone``, ``iPad``) is always ``"ios"``. Everything else sold
+          as a phone or tablet — ``Samsung``, ``Google`` / ``Pixel``,
+          ``OnePlus``, ``Xiaomi``, ``Huawei``, ``Motorola``, ``Nokia``,
+          ``Sony``, ``LG``, ``Oppo``, ``Vivo``, etc. — is ``"android"``.
+          Set ``os`` from the brand when the user names one; only ask the
+          user if the request is truly ambiguous (e.g. "a phone").
+        - When the user names a brand or family but not a specific model,
+          pass a regex in ``deviceName`` that matches any device in that
+          family. The backend treats ``deviceName`` as a regex and matches
+          it against both the descriptor and the device name, so a broad
+          pattern with ``.*`` on each side is the right shape.
+
+        Worked examples:
+
+        - "Open a session on a Samsung device" →
+          ``os="android"``, ``deviceName=".*Samsung.*"``.
+        - "I need a Pixel" → ``os="android"``, ``deviceName=".*Pixel.*"``.
+        - "Start an iPhone 15 session" →
+          ``os="ios"``, ``deviceName=".*iPhone.?15.*"``.
+        - "Any iOS device is fine" → ``os="ios"``, no ``deviceName``.
+
+        IMPORTANT: ``os`` is required. If the user hasn't named a brand,
+        model, or platform at all, stop and ask them — never guess a
+        default. Picking a random OS may allocate the wrong device and
+        consume the user's quota.
+
+        :param os: Target platform. Must be ``"android"`` or ``"ios"``.
+            Required — infer from the brand/model the user named, or ask
+            the user if the request is ambiguous.
+        :param deviceName: Optional device selector, treated as a regex
+            matched against both the device's descriptor and its display
+            name. Use a broad regex (``.*<brand>.*``) when the user named
+            a brand or family, and a tighter one when they named a
+            specific model. Omit this entirely if the user is happy with
+            any device of the requested OS. Examples: ``".*Samsung.*"``,
+            ``".*Pixel_[78].*"``, ``"iPhone_16_real"``.
+        :param sessionDuration: Optional ISO-8601 duration that caps how
+            long the session may run. Default 6h, max 24h. Examples:
+            ``"PT30M"``, ``"PT2H"``.
+        :param tunnelName: Optional Sauce Connect tunnel name. Pass this to
+            route device traffic through a tunnel.
+        :param tunnelOwner: Optional tunnel owner username. Only needed when
+            using a tunnel owned by a different user than the caller.
+            Ignored unless ``tunnelName`` is also provided.
+
+        On success returns the Session object (state ``ACTIVE``). On failure
+        returns a dict with an ``error`` key: the device couldn't be
+        allocated (the backend's explanation is included), or allocation is
+        still pending after the internal timeout (suggest retrying or
+        choosing a different device).
+        """
+        device: Dict[str, Any] = {"os": os}
+        if deviceName:
+            device["deviceName"] = deviceName
+
+        configuration: Dict[str, Any] = {}
+        if sessionDuration:
+            configuration["sessionDuration"] = sessionDuration
+        if tunnelName:
+            tunnel: Dict[str, Any] = {"name": tunnelName}
+            if tunnelOwner:
+                tunnel["owner"] = tunnelOwner
+            configuration["tunnel"] = tunnel
+
+        payload: Dict[str, Any] = {"device": device}
+        if configuration:
+            payload["configuration"] = configuration
+
+        create_response = await client.post("sessions", json=payload)
+        if create_response.status_code >= 400:
+            return {
+                "error": f"Create session failed: {create_response.status_code}",
+                "details": _safe_json(create_response),
+            }
+
+        created = create_response.json()
+        session_id = created.get("id")
+        if not session_id:
+            return {
+                "error": "Create session response missing session id",
+                "details": created,
+            }
+
+        # Poll GET /sessions/{sessionId} until the session leaves the
+        # PENDING/CREATING states, or we hit the timeout.
+        loop = asyncio.get_event_loop()
+        deadline = loop.time() + SESSION_POLL_TIMEOUT_SECONDS
+        last_session: Dict[str, Any] = created
+        last_state: Optional[str] = created.get("state")
+
+        while last_state in SESSION_PENDING_STATES:
+            if loop.time() >= deadline:
+                return {
+                    "error": (
+                        "Session did not become ready within "
+                        f"{int(SESSION_POLL_TIMEOUT_SECONDS)} seconds. "
+                        "The device is taking too long to be allocated. "
+                        f"Last observed state: {last_state}."
+                    ),
+                    "sessionId": session_id,
+                    "state": last_state,
+                    "timeoutSeconds": int(SESSION_POLL_TIMEOUT_SECONDS),
+                }
+
+            await asyncio.sleep(SESSION_POLL_INTERVAL_SECONDS)
+
+            get_response = await client.get(f"sessions/{session_id}")
+            if get_response.status_code >= 400:
+                return {
+                    "error": (
+                        f"Polling session {session_id} failed: "
+                        f"{get_response.status_code}"
+                    ),
+                    "sessionId": session_id,
+                    "details": _safe_json(get_response),
+                }
+            last_session = get_response.json()
+            last_state = last_session.get("state")
+
+        if last_state == "ERRORED":
+            # Surface whatever the backend told us about the failure. The
+            # Session schema doesn't formally carry an error field, but real
+            # responses do include one — preserve the whole payload so the
+            # caller sees the backend's explanation verbatim.
+            error_detail = (
+                last_session.get("error")
+                or last_session.get("detail")
+                or last_session.get("message")
+                or "Device could not be allocated. See details for the "
+                   "backend response."
+            )
+            return {
+                "error": f"Session {session_id} failed to start: {error_detail}",
+                "sessionId": session_id,
+                "state": last_state,
+                "details": last_session,
+            }
+
+        return last_session
 
     @server.tool()
     async def push_file_to_device(
