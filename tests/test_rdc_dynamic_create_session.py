@@ -129,8 +129,13 @@ class TestCreateSessionTool:
         }
 
     @pytest.mark.asyncio
-    async def test_timeout_returns_error_when_still_pending(self):
-        """Session that never leaves PENDING produces a timeout error."""
+    async def test_timeout_cancels_pending_session(self):
+        """Timeout path must DELETE the pending session and flag it.
+
+        The LLM-facing error message should explain what happened and steer
+        the model toward asking the user what to do (retry vs. change the
+        request), not toward an automatic retry.
+        """
         session_id = "timeout-session-id"
 
         def handler(request: httpx.Request) -> httpx.Response:
@@ -138,11 +143,17 @@ class TestCreateSessionTool:
                 return httpx.Response(
                     200, json={"id": session_id, "state": "PENDING"}
                 )
-            return httpx.Response(
-                200, json={"id": session_id, "state": "PENDING"}
-            )
+            if request.method == "GET":
+                return httpx.Response(
+                    200, json={"id": session_id, "state": "PENDING"}
+                )
+            if request.method == "DELETE":
+                return httpx.Response(
+                    200, json={"sessionId": session_id, "state": "CLOSING"}
+                )
+            raise AssertionError(f"unexpected request: {request.method}")
 
-        server, _requests = _build_server_with_mock_transport(handler)
+        server, requests = _build_server_with_mock_transport(handler)
 
         # Shrink the timeout so we can exercise the deadline branch without
         # actually waiting. asyncio.sleep is already no-op'd by the fixture,
@@ -151,9 +162,58 @@ class TestCreateSessionTool:
             result = await _call_create_session(server, os="android")
 
         assert "error" in result
-        assert "taking too long" in result["error"]
+        assert result["reason"] == "allocation_timeout"
         assert result["sessionId"] == session_id
         assert result["state"] == "PENDING"
+        assert result["cancellation"]["attempted"] is True
+        assert result["cancellation"]["succeeded"] is True
+        # The LLM-facing message should mention both choices we want the
+        # model to surface to the user.
+        assert "try the same request again" in result["error"]
+        assert "change the allocation prompt" in result["error"]
+        # And the DELETE should have actually been issued against the
+        # session we created.
+        delete_requests = [r for r in requests if r.method == "DELETE"]
+        assert len(delete_requests) == 1
+        assert delete_requests[0].url.path.endswith(f"/sessions/{session_id}")
+
+    @pytest.mark.asyncio
+    async def test_timeout_records_failed_cancellation(self):
+        """If DELETE fails, that's captured in the cancellation block.
+
+        We still return the timeout error — the session is the backend's
+        problem at that point — but we don't lie about cleanup having
+        worked.
+        """
+        session_id = "timeout-session-cleanup-fail"
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            if request.method == "POST":
+                return httpx.Response(
+                    200, json={"id": session_id, "state": "PENDING"}
+                )
+            if request.method == "GET":
+                return httpx.Response(
+                    200, json={"id": session_id, "state": "PENDING"}
+                )
+            if request.method == "DELETE":
+                return httpx.Response(
+                    500,
+                    json={
+                        "type": "about:blank",
+                        "title": "Internal Server Error",
+                    },
+                )
+            raise AssertionError(f"unexpected request: {request.method}")
+
+        server, _requests = _build_server_with_mock_transport(handler)
+        with patch.object(rdc_dynamic, "SESSION_POLL_TIMEOUT_SECONDS", 0.0):
+            result = await _call_create_session(server, os="ios")
+
+        assert result["reason"] == "allocation_timeout"
+        assert result["cancellation"]["attempted"] is True
+        assert result["cancellation"]["succeeded"] is False
+        assert result["cancellation"]["status"] == 500
 
     @pytest.mark.asyncio
     async def test_errored_state_surfaces_backend_error(self):

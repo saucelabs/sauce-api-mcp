@@ -71,8 +71,13 @@ EXCLUDED_OPERATION_IDS = {
 # The backend transitions a newly created session through PENDING -> CREATING ->
 # ACTIVE. If device allocation fails it transitions to ERRORED. We poll until we
 # leave the pre-ready states or the timeout elapses.
+#
+# Timeout is capped at 55s on purpose: common MCP clients (Claude Desktop in
+# particular) enforce a hardcoded ~60s ceiling on tool calls, and we need a few
+# seconds of headroom for the final response to make it back through the
+# transport before the client gives up on us.
 SESSION_POLL_INTERVAL_SECONDS = 2.0
-SESSION_POLL_TIMEOUT_SECONDS = 60.0
+SESSION_POLL_TIMEOUT_SECONDS = 55.0
 SESSION_PENDING_STATES = {"PENDING", "CREATING"}
 
 # Safe directory for file operations (push/pull)
@@ -426,16 +431,43 @@ def create_server(
 
         while last_state in SESSION_PENDING_STATES:
             if loop.time() >= deadline:
+                # Cancel the still-pending allocation so we don't leave an
+                # orphaned session draining the user's quota while they
+                # decide what to do next. Record whether cleanup succeeded
+                # so the caller can surface that if needed.
+                cancellation: Dict[str, Any] = {"attempted": True}
+                try:
+                    cancel_response = await client.delete(
+                        f"sessions/{session_id}"
+                    )
+                    cancellation["status"] = cancel_response.status_code
+                    cancellation["succeeded"] = (
+                        cancel_response.status_code < 400
+                    )
+                    if cancel_response.status_code >= 400:
+                        cancellation["details"] = _safe_json(cancel_response)
+                except Exception as exc:
+                    cancellation["succeeded"] = False
+                    cancellation["error"] = str(exc)
+
                 return {
                     "error": (
-                        "Session did not become ready within "
+                        "Device allocation timed out after "
                         f"{int(SESSION_POLL_TIMEOUT_SECONDS)} seconds. "
-                        "The device is taking too long to be allocated. "
-                        f"Last observed state: {last_state}."
+                        "Explain to the user that Sauce Labs could not "
+                        "allocate a device in time and the pending "
+                        "allocation has been canceled. Offer them two "
+                        "choices: (1) try the same request again, or "
+                        "(2) change the allocation prompt — a different "
+                        "os, a broader deviceName regex, or no deviceName "
+                        "at all to pick any available device. Do not "
+                        "retry automatically without asking."
                     ),
+                    "reason": "allocation_timeout",
                     "sessionId": session_id,
                     "state": last_state,
                     "timeoutSeconds": int(SESSION_POLL_TIMEOUT_SECONDS),
+                    "cancellation": cancellation,
                 }
 
             await asyncio.sleep(SESSION_POLL_INTERVAL_SECONDS)
