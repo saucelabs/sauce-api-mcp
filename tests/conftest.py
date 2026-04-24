@@ -13,10 +13,8 @@ import httpx
 from unittest.mock import MagicMock
 
 from mcp.server import FastMCP as MCPFastMCP
-from fastmcp import FastMCP as FastMCPLib
 
 from sauce_api_mcp.main import SauceLabsAgent
-from sauce_api_mcp.rdc_openapi import SauceLabsRDCAgent
 
 
 # ---------------------------------------------------------------------------
@@ -90,11 +88,14 @@ def _load_credentials():
 USERNAME, ACCESS_KEY, REGION = _load_credentials()
 HAS_CREDENTIALS = USERNAME is not None and ACCESS_KEY is not None
 
-# Skip marker for live tests when credentials are unavailable
-live = pytest.mark.skipif(
-    not HAS_CREDENTIALS,
-    reason="SAUCE_USERNAME / SAUCE_ACCESS_KEY not available"
-)
+def live(cls_or_func):
+    """Apply the `live` marker (so CI can deselect) and skip if no credentials."""
+    cls_or_func = pytest.mark.live(cls_or_func)
+    if not HAS_CREDENTIALS:
+        cls_or_func = pytest.mark.skip(
+            reason="SAUCE_USERNAME / SAUCE_ACCESS_KEY not available"
+        )(cls_or_func)
+    return cls_or_func
 
 
 # ---------------------------------------------------------------------------
@@ -149,28 +150,6 @@ def core_agent_with_mock(mock_mcp_server, mock_transport):
     return _factory
 
 
-@pytest.fixture
-def rdc_agent_with_mock(mock_transport):
-    """
-    Factory fixture: returns a SauceLabsRDCAgent whose httpx client uses a MockTransport.
-    """
-    def _factory(handler=None):
-        captured = []
-
-        async def capturing_handler(request: httpx.Request) -> httpx.Response:
-            captured.append(request)
-            if handler:
-                return await handler(request)
-            return httpx.Response(200, json={})
-
-        mcp = FastMCPLib("TestRDCAgent")
-        agent = SauceLabsRDCAgent(mcp, "fake_key", "test_user", "US_WEST")
-        agent.client._transport = httpx.MockTransport(capturing_handler)
-        return agent, captured
-
-    return _factory
-
-
 # ---------------------------------------------------------------------------
 # Live fixtures (hit real Sauce Labs APIs)
 # ---------------------------------------------------------------------------
@@ -195,10 +174,3 @@ def live_core_agent(live_credentials):
     return agent
 
 
-@pytest.fixture
-def live_rdc_agent(live_credentials):
-    """Function-scoped live SauceLabsRDCAgent hitting real APIs."""
-    username, access_key, region = live_credentials
-    mcp = FastMCPLib("LiveRDCAgent")
-    agent = SauceLabsRDCAgent(mcp, access_key, username, region)
-    return agent

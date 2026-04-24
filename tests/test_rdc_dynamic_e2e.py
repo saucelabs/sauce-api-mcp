@@ -198,10 +198,31 @@ class TestSpecFetching:
         assert isinstance(spec_from_local_file, dict)
         assert len(spec_from_local_file["paths"]) == len(spec_from_url["paths"])
 
-    def test_fetch_invalid_url_raises(self):
-        """Fetching from a non-existent URL raises an HTTP error."""
-        with pytest.raises((httpx.HTTPStatusError, httpx.ConnectError, httpx.HTTPError)):
-            fetch_openapi_spec_sync("https://httpbin.org/status/404")
+    def test_fetch_invalid_url_raises(self, tmp_path, monkeypatch):
+        """With no cache available, fetch failure after retries raises RuntimeError."""
+        import sauce_api_mcp.rdc_dynamic as rdc
+
+        def failing_get(*args, **kwargs):
+            raise httpx.ConnectError("simulated network failure")
+
+        monkeypatch.setattr(rdc, "SPEC_CACHE_FILE", str(tmp_path / "nonexistent.yaml"))
+        monkeypatch.setattr(rdc.httpx, "get", failing_get)
+        with pytest.raises(RuntimeError, match="after 3 retries"):
+            fetch_openapi_spec_sync("https://example.invalid/spec.yaml")
+
+    def test_fetch_falls_back_to_cache(self, tmp_path, monkeypatch, spec_from_url):
+        """When remote fetch fails, a seeded cache file is returned."""
+        import sauce_api_mcp.rdc_dynamic as rdc
+
+        def failing_get(*args, **kwargs):
+            raise httpx.ConnectError("simulated network failure")
+
+        cache_file = tmp_path / "rdc-access-api-spec.yaml"
+        cache_file.write_text(yaml.dump(spec_from_url))
+        monkeypatch.setattr(rdc, "SPEC_CACHE_FILE", str(cache_file))
+        monkeypatch.setattr(rdc.httpx, "get", failing_get)
+        result = fetch_openapi_spec_sync("https://example.invalid/spec.yaml")
+        assert result == spec_from_url
 
     def test_fetch_nonexistent_file_raises(self):
         """Fetching from a non-existent file raises FileNotFoundError."""
@@ -874,32 +895,19 @@ class TestProductionCodeIssues:
         # PRODUCTION CODE ISSUE: resolve_refs() should detect circular
         # references and either raise a clear error or break the cycle.
 
-    def test_push_file_path_traversal_risk(self):
-        """
-        ISSUE: push_file_to_device accepts any local_file_path without
-        validation. An MCP client could read arbitrary local files
-        (e.g., ~/.ssh/id_rsa, /etc/passwd) and upload them to the device.
+    def test_validate_path_rejects_traversal(self):
+        """Path traversal attempts are coerced inside SAFE_FILE_DIR via basename strip."""
+        from sauce_api_mcp.rdc_dynamic import _validate_path, SAFE_FILE_DIR
+        resolved = _validate_path("../../etc/passwd")
+        assert resolved.startswith(os.path.realpath(SAFE_FILE_DIR))
+        assert resolved.endswith("passwd")
+        assert "/etc/passwd" not in resolved
 
-        This is a security concern — the tool should validate or restrict
-        the file path to prevent path traversal attacks.
-        """
-        # Just flag the issue — the tool checks os.path.exists but doesn't
-        # restrict which paths are allowed
-        from sauce_api_mcp.rdc_dynamic import create_server
-        # The risk exists by design — flagging for review
-        assert True  # Placeholder — the issue is documented above
-
-    def test_pull_file_writes_to_cwd(self):
-        """
-        ISSUE: pull_file_from_device writes to os.path.basename(device_file_path)
-        in the current working directory when local_save_path is None.
-
-        This could overwrite existing files unexpectedly. A safer default
-        would be to use a temp directory or require explicit save path.
-        """
-        # Verify the default behavior by checking the code path
-        # (no actual file written — just documenting the risk)
-        assert True  # Placeholder — the issue is documented above
+    def test_validate_path_accepts_plain_filename(self):
+        """Plain filenames resolve to SAFE_FILE_DIR/<name>."""
+        from sauce_api_mcp.rdc_dynamic import _validate_path, SAFE_FILE_DIR
+        resolved = _validate_path("app.apk")
+        assert resolved == os.path.realpath(os.path.join(SAFE_FILE_DIR, "app.apk"))
 
     @pytest.mark.asyncio
     async def test_launch_app_schema_mismatch(self, offline_server):
