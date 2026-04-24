@@ -4,8 +4,11 @@ Dynamic OpenAPI-driven MCP server for Sauce Labs RDC v2 API.
 Auto-generates MCP tools from the official OpenAPI spec at startup using
 FastMCPOpenAPI, so the tool set is always up-to-date without code changes.
 
-Three binary/multipart endpoints (pushFile, takeScreenshot, pullFile) are
-excluded from auto-generation and implemented manually.
+A few endpoints are excluded from auto-generation (see EXCLUDED_PATHS) and
+hand-written instead:
+  - pushFile / takeScreenshot / pullFile: binary/multipart payloads.
+  - proxy/http/...: collapsed into a single `proxy_http` tool that takes
+    the HTTP verb as a parameter, instead of six separate tools.
 """
 
 import base64
@@ -38,11 +41,16 @@ DEFAULT_SPEC_URL = (
     "refs/heads/main/static/oas/real-device-access-api-spec.yaml"
 )
 
-# Paths that involve binary/multipart and can't be auto-generated
+# Paths excluded from auto-generation.
+# - pushFile/takeScreenshot/pullFile: binary/multipart, need hand-written tools.
+# - proxy/http/...: collapsed into a single `proxy_http` tool below instead of
+#   six method-specific tools (proxyGet, proxyPost, proxyPut, proxyDelete,
+#   proxyHead, proxyOptions).
 EXCLUDED_PATHS = {
     "/sessions/{sessionId}/device/pushFile",
     "/sessions/{sessionId}/device/takeScreenshot",
     "/sessions/{sessionId}/device/pullFile",
+    "/sessions/{sessionId}/device/proxy/http/{targetHost}/{targetPort}/{targetPath}",
 }
 
 # Safe directory for file operations (push/pull)
@@ -380,6 +388,65 @@ def create_server(
             "saved_to": safe_path,
             "size": len(response.content),
         }
+
+    @server.tool()
+    async def proxy_http(
+        sessionId: str,
+        method: str,
+        targetHost: str,
+        targetPort: str,
+        targetPath: str,
+        body: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """
+        Send an HTTP request from the device under test to a target host,
+        tunneled through the Sauce Labs device proxy. Use this to reach
+        backends, staging APIs, or local services from the device's network
+        context during a session.
+
+        :param sessionId: The id of the active device session.
+        :param method: HTTP verb. One of: GET, POST, PUT, DELETE, HEAD, OPTIONS.
+        :param targetHost: Hostname or IP the device should connect to.
+        :param targetPort: TCP port on the target host (as a string).
+        :param targetPath: Request path on the target, without a leading slash.
+        :param body: JSON-serializable request body. Only sent for POST and PUT;
+            ignored for other verbs.
+        """
+        verb = method.upper()
+        allowed = {"GET", "POST", "PUT", "DELETE", "HEAD", "OPTIONS"}
+        if verb not in allowed:
+            return {
+                "error": f"Unsupported method '{method}'. "
+                         f"Use one of {sorted(allowed)}."
+            }
+
+        endpoint = (
+            f"sessions/{sessionId}/device/proxy/http/"
+            f"{targetHost}/{targetPort}/{targetPath}"
+        )
+        kwargs: Dict[str, Any] = {}
+        if body is not None and verb in {"POST", "PUT"}:
+            kwargs["json"] = body
+
+        response = await client.request(verb, endpoint, **kwargs)
+
+        if response.status_code >= 400:
+            return {
+                "error": f"Proxy {verb} failed: {response.status_code}",
+                "details": response.text,
+            }
+
+        # HEAD has no body by spec; surface status + headers instead.
+        if verb == "HEAD":
+            return {
+                "status": response.status_code,
+                "headers": dict(response.headers),
+            }
+
+        content_type = response.headers.get("content-type", "")
+        if "json" in content_type:
+            return response.json()
+        return {"status": response.status_code, "text": response.text}
 
     return server
 
