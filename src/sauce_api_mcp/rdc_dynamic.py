@@ -176,9 +176,12 @@ def resolve_refs(schema: dict) -> dict:
 
     defs = schema.get("$defs", {})
 
-    def _resolve(node):
+    # `seen` tracks refs on the current resolution path (not the whole tree),
+    # so sibling branches that reference the same $def are still resolved
+    # independently. A ref is only "circular" if it reappears on its own path.
+    def _resolve(node, seen):
         if isinstance(node, list):
-            return [_resolve(item) for item in node]
+            return [_resolve(item, seen) for item in node]
         if not isinstance(node, dict):
             return node
 
@@ -189,19 +192,26 @@ def resolve_refs(schema: dict) -> dict:
             ref_path = node["$ref"]  # e.g. "#/$defs/TunnelConfiguration"
             if ref_path.startswith("#/$defs/"):
                 ref_name = ref_path[len("#/$defs/"):]
+                if ref_name in seen:
+                    logging.warning(
+                        "Circular $ref detected at %s; dropping to avoid "
+                        "infinite recursion", ref_path
+                    )
+                    return {k: _resolve(v, seen) for k, v in node.items()
+                            if k not in ("$ref", "$defs")}
                 resolved = local_defs.get(ref_name, {})
                 # Merge any sibling keys (e.g. "type" next to "$ref")
                 merged = {k: v for k, v in node.items()
                           if k not in ("$ref", "$defs")}
-                merged.update(_resolve(resolved))
+                merged.update(_resolve(resolved, seen | {ref_name}))
                 return merged
             # Unresolvable $ref — drop it, keep siblings
-            return {k: _resolve(v) for k, v in node.items()
+            return {k: _resolve(v, seen) for k, v in node.items()
                     if k not in ("$ref", "$defs")}
 
-        return {k: _resolve(v) for k, v in node.items() if k != "$defs"}
+        return {k: _resolve(v, seen) for k, v in node.items() if k != "$defs"}
 
-    resolved = _resolve(schema)
+    resolved = _resolve(schema, frozenset())
     resolved.pop("$defs", None)
     return resolved
 

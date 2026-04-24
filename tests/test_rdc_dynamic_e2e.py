@@ -868,32 +868,58 @@ class TestErrorHandling:
 
 
 # ===================================================================
-# 10. Production Code Issues (Flagged, NOT fixed)
+# 10. Regression tests for previously flagged production issues
 # ===================================================================
 
 class TestProductionCodeIssues:
-    """
-    Documents issues found in production code.
-    Each test uses xfail or comments to flag the issue without fixing it.
-    """
+    """Regression tests for bugs originally flagged during the PR #26 review."""
 
-    def test_resolve_refs_no_circular_protection(self):
+    def test_resolve_refs_breaks_circular_ref(self):
+        """resolve_refs() must not recurse infinitely on circular $refs.
+
+        Originally flagged in PR #26 — a schema where A → B → A used to
+        raise RecursionError. resolve_refs now drops the cycle and returns
+        a finite schema.
         """
-        ISSUE: resolve_refs() has no circular reference detection.
-        A schema where A -> B -> A would cause infinite recursion.
-        """
-        # Circular schema: A refs B, B refs A
         schema = {
             "$defs": {
-                "A": {"$ref": "#/$defs/B"},
-                "B": {"$ref": "#/$defs/A"},
+                "A": {"type": "object", "properties": {"b": {"$ref": "#/$defs/B"}}},
+                "B": {"type": "object", "properties": {"a": {"$ref": "#/$defs/A"}}},
             },
-            "properties": {"x": {"$ref": "#/$defs/A"}}
+            "properties": {"x": {"$ref": "#/$defs/A"}},
         }
-        with pytest.raises(RecursionError):
-            resolve_refs(schema)
-        # PRODUCTION CODE ISSUE: resolve_refs() should detect circular
-        # references and either raise a clear error or break the cycle.
+        result = resolve_refs(schema)
+
+        assert "$defs" not in result
+        # Serializing proves the output is finite (no recursive structure).
+        assert isinstance(json.dumps(result), str)
+
+    def test_resolve_refs_self_reference(self):
+        """A $def that references itself is handled without recursion."""
+        schema = {
+            "$defs": {"Node": {"type": "object",
+                               "properties": {"child": {"$ref": "#/$defs/Node"}}}},
+            "properties": {"root": {"$ref": "#/$defs/Node"}},
+        }
+        result = resolve_refs(schema)
+
+        assert "$defs" not in result
+        assert json.dumps(result)  # finite
+
+    def test_resolve_refs_sibling_refs_still_resolve(self):
+        """Two siblings referencing the same $def are both resolved (not
+        incorrectly treated as a cycle)."""
+        schema = {
+            "$defs": {"X": {"type": "string", "format": "uuid"}},
+            "properties": {
+                "a": {"$ref": "#/$defs/X"},
+                "b": {"$ref": "#/$defs/X"},
+            },
+        }
+        result = resolve_refs(schema)
+
+        assert result["properties"]["a"] == {"type": "string", "format": "uuid"}
+        assert result["properties"]["b"] == {"type": "string", "format": "uuid"}
 
     def test_validate_path_rejects_traversal(self):
         """Path traversal attempts are coerced inside SAFE_FILE_DIR via basename strip."""
