@@ -250,10 +250,15 @@ class TestToolGeneration:
 
     @pytest.mark.asyncio
     async def test_total_tool_count(self, offline_server):
-        """Server should have 36 tools (33 auto + 3 manual)."""
+        """Server should have 31 tools (27 auto + 4 manual).
+
+        The 4 manual tools are push_file_to_device, pull_file_from_device,
+        take_screenshot, and proxy_http. proxy_http replaces six
+        method-specific auto-generated tools (proxyGet/Post/...).
+        """
         tools = await compat_get_tools(offline_server)
-        assert len(tools) == 36, (
-            f"Expected 36 tools, got {len(tools)}. Names: {sorted(tools.keys())}"
+        assert len(tools) == 31, (
+            f"Expected 31 tools, got {len(tools)}. Names: {sorted(tools.keys())}"
         )
 
     @pytest.mark.asyncio
@@ -268,21 +273,28 @@ class TestToolGeneration:
 
     @pytest.mark.asyncio
     async def test_manual_tools_registered(self, offline_server):
-        """The 3 manual tools should be present."""
+        """The 4 manual tools should be present."""
         tools = await compat_get_tools(offline_server)
-        manual_names = {"push_file_to_device", "take_screenshot", "pull_file_from_device"}
+        manual_names = {
+            "push_file_to_device", "take_screenshot",
+            "pull_file_from_device", "proxy_http",
+        }
         for name in manual_names:
             assert name in tools, f"Manual tool '{name}' not found in {sorted(tools.keys())}"
 
     @pytest.mark.asyncio
     async def test_expected_tool_names_present(self, offline_server):
-        """Key auto-generated tool names should be present."""
+        """Key tool names should be present.
+
+        The six method-specific proxy tools (proxyGet/Post/Put/Delete/Head/
+        Options) were collapsed into a single manual `proxy_http` tool, so
+        we check for that instead.
+        """
         tools = await compat_get_tools(offline_server)
         expected = {
             "listDevices", "listDeviceStatus", "createSession", "getSession",
             "deleteSession", "listSessions", "executeShellCommand", "launchApp",
-            "openUrl", "installApp", "proxyGet", "proxyPost", "proxyDelete",
-            "proxyPut", "proxyHead", "proxyOptions", "listAppiumVersions",
+            "openUrl", "installApp", "proxy_http", "listAppiumVersions",
             "startAppiumServer", "listAppInstallations", "uninstallApp",
             "listFiles", "removeFile", "statFile",
             "startNetworkCapture", "stopNetworkCapture",
@@ -304,7 +316,10 @@ class TestToolGeneration:
     async def test_all_auto_tools_have_object_parameters(self, offline_server):
         """Auto-generated tools should have parameters with type=object."""
         tools = await compat_get_tools(offline_server)
-        manual_names = {"push_file_to_device", "take_screenshot", "pull_file_from_device"}
+        manual_names = {
+            "push_file_to_device", "take_screenshot",
+            "pull_file_from_device", "proxy_http",
+        }
         for name, tool in tools.items():
             if name in manual_names:
                 continue
@@ -381,17 +396,17 @@ class TestToolSchemaValidation:
         assert "deviceName" in props, f"Missing 'deviceName'. Has: {list(props.keys())}"
 
     @pytest.mark.asyncio
-    async def test_proxy_tools_have_all_path_params(self, offline_server):
-        """Proxy tools should require sessionId, targetHost, targetPort, targetPath."""
+    async def test_proxy_http_has_all_path_params(self, offline_server):
+        """proxy_http should require sessionId, method, and all target path params."""
         tools = await compat_get_tools(offline_server)
-        for proxy_tool in ["proxyGet", "proxyPost", "proxyDelete"]:
-            if proxy_tool not in tools:
-                continue
-            required = tools[proxy_tool].parameters.get("required", [])
-            for param in ["sessionId", "targetHost", "targetPort", "targetPath"]:
-                assert param in required, (
-                    f"Tool '{proxy_tool}' should require '{param}', required={required}"
-                )
+        assert "proxy_http" in tools, (
+            f"proxy_http missing from tools: {sorted(tools.keys())}"
+        )
+        required = tools["proxy_http"].parameters.get("required", [])
+        for param in ["sessionId", "method", "targetHost", "targetPort", "targetPath"]:
+            assert param in required, (
+                f"Tool 'proxy_http' should require '{param}', required={required}"
+            )
 
 
 # ===================================================================
@@ -825,7 +840,7 @@ class TestErrorHandling:
 
     @pytest.mark.asyncio
     async def test_empty_spec_only_manual_tools(self):
-        """Server with empty spec should only have 3 manual tools."""
+        """Server with empty spec should only have the 4 manual tools."""
         minimal_spec = {
             "openapi": "3.0.0",
             "info": {"title": "empty", "version": "0.0.1"},
@@ -833,12 +848,12 @@ class TestErrorHandling:
         }
         server = create_server(minimal_spec, "key", "user", "US_WEST")
         tools = await compat_get_tools(server)
-        assert len(tools) == 3, (
-            f"Expected 3 manual tools, got {len(tools)}: {sorted(tools.keys())}"
+        assert len(tools) == 4, (
+            f"Expected 4 manual tools, got {len(tools)}: {sorted(tools.keys())}"
         )
-        assert "push_file_to_device" in tools
-        assert "take_screenshot" in tools
-        assert "pull_file_from_device" in tools
+        for name in ("push_file_to_device", "pull_file_from_device",
+                     "take_screenshot", "proxy_http"):
+            assert name in tools, f"Manual tool '{name}' missing from {sorted(tools.keys())}"
 
     @pytest.mark.asyncio
     async def test_route_map_fn_excludes_correctly(self):
