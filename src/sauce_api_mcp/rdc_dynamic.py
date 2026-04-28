@@ -4,11 +4,21 @@ Dynamic OpenAPI-driven MCP server for Sauce Labs RDC v2 API.
 Auto-generates MCP tools from the official OpenAPI spec at startup using
 FastMCPOpenAPI, so the tool set is always up-to-date without code changes.
 
-A few endpoints are excluded from auto-generation (see EXCLUDED_PATHS) and
-hand-written instead:
+A few endpoints are excluded from auto-generation (see EXCLUDED_PATHS and
+EXCLUDED_OPERATION_IDS) and hand-written instead:
   - pushFile / takeScreenshot / pullFile: binary/multipart payloads.
   - proxy/http/...: collapsed into a single `proxy_http` tool that takes
     the HTTP verb as a parameter, instead of six separate tools.
+  - POST /sessions and GET /sessions/{sessionId}: replaced by a single
+    `createSession` tool that creates the session and polls until the
+    device is ready, so callers don't have to drive the polling loop.
+  - installApp: replaced by a pair of tools (`installApp` +
+    `waitForAppInstallation`). `installApp` starts the install and returns
+    the installation id; `waitForAppInstallation` polls
+    `listAppInstallations` for up to 55s and tells the caller to call it
+    again if the install is still pending. App installs can take longer
+    than the MCP client's ~60s tool-call ceiling, which is why the wait
+    step is a separately callable tool rather than a single blocking call.
 """
 
 import asyncio
@@ -61,10 +71,14 @@ EXCLUDED_PATHS = {
 # Operation IDs excluded from auto-generation. Used for endpoints where we want
 # to suppress a specific HTTP method on a path while keeping others (e.g. we
 # hand-roll POST /sessions and GET /sessions/{sessionId} but keep listSessions
-# and deleteSession).
+# and deleteSession), and for endpoints whose auto-generated shape we want to
+# replace with a richer hand-written version (e.g. installApp, which we wrap
+# with a companion waitForAppInstallation tool so callers don't have to drive
+# the polling loop themselves).
 EXCLUDED_OPERATION_IDS = {
     "createSession",
     "getSession",
+    "installApp",
 }
 
 # Session polling configuration for the hand-written create_session tool.
@@ -79,6 +93,19 @@ EXCLUDED_OPERATION_IDS = {
 SESSION_POLL_INTERVAL_SECONDS = 2.0
 SESSION_POLL_TIMEOUT_SECONDS = 55.0
 SESSION_PENDING_STATES = {"PENDING", "CREATING"}
+
+# App installation polling configuration for the hand-written
+# waitForAppInstallation tool. The backend reports installation progress via
+# listAppInstallations with a per-installation ``status`` that starts at
+# PENDING and transitions to FINISHED, LAUNCHING, or ERROR. We poll until the
+# status leaves PENDING or the per-call timeout elapses. Same 55s cap as
+# session polling: an app install can legitimately take longer than a single
+# MCP tool call, so when we hit the deadline we hand control back to the LLM
+# with guidance to call the tool again rather than blocking past the client's
+# ~60s ceiling.
+APP_INSTALL_POLL_INTERVAL_SECONDS = 2.0
+APP_INSTALL_POLL_TIMEOUT_SECONDS = 55.0
+APP_INSTALL_PENDING_STATES = {"PENDING"}
 
 # Safe directory for file operations (push/pull)
 SAFE_FILE_DIR = os.path.join(os.path.expanduser("~"), ".sauce-mcp", "files")
@@ -505,6 +532,271 @@ def create_server(
             }
 
         return last_session
+
+    @server.tool()
+    async def installApp(
+        sessionId: str,
+        app: str,
+        enableInstrumentation: bool = True,
+        launchAfterInstall: Optional[bool] = None,
+        features: Optional[Dict[str, bool]] = None,
+    ) -> Dict[str, Any]:
+        """
+        Start installing an app on the device in a session, optionally
+        launching it once the install completes.
+
+        This kicks off the install asynchronously on the backend and returns
+        as soon as Sauce Labs has accepted the request. Installation itself
+        can easily take longer than a single MCP tool call — sometimes more
+        than a minute — so this tool does NOT wait for the install to
+        finish. Instead it returns the ``installationId`` and a pointer to
+        the companion ``waitForAppInstallation`` tool, which polls for
+        progress in bounded chunks.
+
+        **Preferred way to install-and-launch.** If the user asks to
+        install and then launch the app ("install and open it", "install
+        and run it", "install and launch", "install this build and start
+        it up", etc.), call THIS tool with ``launchAfterInstall=True``.
+        Do NOT install first and then call the ``launchApp`` tool as a
+        second step — the backend launches the app as part of the install
+        flow when you set this flag, which is faster and avoids race
+        conditions between install completion and launch. Only fall back
+        to ``launchApp`` when the user wants to launch an app that is
+        already installed, or re-launch it after it was closed.
+
+        Typical flow:
+
+        1. Call ``installApp`` with the session id and app reference. Set
+           ``launchAfterInstall=True`` if the user wants the app to start
+           running after install.
+        2. If the returned ``status`` is already ``FINISHED``, ``LAUNCHING``,
+           or ``ERROR``, the install resolved synchronously and you're done.
+        3. Otherwise (``status`` is ``PENDING``), call
+           ``waitForAppInstallation`` with the returned ``sessionId`` and
+           ``installationId`` and keep calling it until it returns a
+           non-pending status.
+
+        :param sessionId: The id of the active device session to install
+            the app into.
+        :param app: Reference to the app in Sauce Labs App Storage, e.g.
+            ``"storage:filename=myapp.apk"`` or
+            ``"storage:<uuid>"``. Required.
+        :param enableInstrumentation: Enable app instrumentation (includes
+            app re-signing on iOS). Required for iOS cloud devices and
+            unlocks advanced features (network capture, image injection,
+            biometrics interception, etc.) on both platforms. **Defaults
+            to True and should almost always stay True.** Only pass
+            ``False`` if the user has explicitly asked to disable
+            instrumentation for this app — never flip it off on your own
+            initiative, even if the install fails, because disabling it
+            on iOS will typically break installation outright.
+        :param launchAfterInstall: If ``True``, the app launches
+            automatically once installation completes. Set this to
+            ``True`` whenever the user's request implies they want the
+            app running after install (install-and-launch, install-and-
+            open, install-and-run, etc.) — prefer this over a follow-up
+            ``launchApp`` call. Defaults to ``False`` on the backend when
+            omitted.
+        :param features: Optional per-feature toggles. Accepts any of:
+            ``networkCapture``, ``deviceVitals``, ``imageInjection``,
+            ``biometricsInterception``, ``bypassScreenshotRestriction``,
+            ``errorReporting``. All default to ``False`` on the backend.
+
+        On success returns a dict with at least ``installationId``,
+        ``status``, ``app``, and ``sessionId`` (the latter echoed so the
+        caller has everything needed to call ``waitForAppInstallation``).
+        When ``status`` is ``PENDING``, ``next_action`` points at the wait
+        tool. On failure returns a dict with an ``error`` key.
+        """
+        # Always include enableInstrumentation on the wire so our tool-side
+        # default (True) wins over any backend default drift. The LLM can
+        # still override it to False, but only when the user explicitly
+        # asks — see the docstring above.
+        payload: Dict[str, Any] = {
+            "app": app,
+            "enableInstrumentation": enableInstrumentation,
+        }
+        if launchAfterInstall is not None:
+            payload["launchAfterInstall"] = launchAfterInstall
+        if features:
+            payload["features"] = features
+
+        response = await client.post(
+            f"sessions/{sessionId}/device/installApp",
+            json=payload,
+        )
+        if response.status_code >= 400:
+            return {
+                "error": f"Install app failed: {response.status_code}",
+                "sessionId": sessionId,
+                "details": _safe_json(response),
+            }
+
+        installation = response.json() if response.content else {}
+        installation_id = installation.get("installationId")
+        status = installation.get("status")
+
+        result: Dict[str, Any] = {
+            "sessionId": sessionId,
+            **installation,
+        }
+
+        if status in APP_INSTALL_PENDING_STATES and installation_id:
+            result["next_action"] = {
+                "tool": "waitForAppInstallation",
+                "arguments": {
+                    "sessionId": sessionId,
+                    "installationId": installation_id,
+                },
+                "message": (
+                    "Installation is still PENDING. Call "
+                    "waitForAppInstallation with the sessionId and "
+                    "installationId above to wait for it to finish. "
+                    "App installs can take longer than 60 seconds, so "
+                    "waitForAppInstallation may ask you to call it again "
+                    "— keep calling until status is no longer PENDING."
+                ),
+            }
+
+        return result
+
+    @server.tool()
+    async def waitForAppInstallation(
+        sessionId: str,
+        installationId: str,
+    ) -> Dict[str, Any]:
+        """
+        Poll an in-progress app installation until it leaves the PENDING
+        state, or return a "call me again" hint if the per-call budget
+        runs out.
+
+        Use this after ``installApp`` returns a PENDING status. This tool
+        polls ``listAppInstallations`` on the session every couple of
+        seconds looking for the installation with the given
+        ``installationId``. It returns as soon as that installation's
+        ``status`` transitions to ``FINISHED``, ``LAUNCHING``, or
+        ``ERROR``. If the budget (55s — short of the MCP client's ~60s
+        tool-call ceiling) elapses while the status is still ``PENDING``,
+        the tool returns with ``status: "PENDING"`` and a ``next_action``
+        pointing back at itself; when you see that, call
+        ``waitForAppInstallation`` again with the same arguments. App
+        installations can legitimately take several minutes, so multiple
+        iterations are expected for large apps.
+
+        :param sessionId: The id of the device session that owns the
+            installation.
+        :param installationId: The installation id returned by
+            ``installApp``.
+
+        On completion returns the full installation record (at minimum
+        ``installationId``, ``app``, ``status``) plus ``sessionId``.
+        When status is ``ERROR`` the ``error`` key is also set so the
+        caller can surface the failure directly. On timeout returns the
+        last observed installation record with ``status: "PENDING"`` and
+        a ``next_action`` instructing the LLM to call this tool again.
+        On API failure returns a dict with an ``error`` key.
+        """
+        loop = asyncio.get_event_loop()
+        deadline = loop.time() + APP_INSTALL_POLL_TIMEOUT_SECONDS
+        last_installation: Optional[Dict[str, Any]] = None
+        last_status: Optional[str] = "PENDING"
+
+        # Poll until status leaves PENDING or we run out of time. We check
+        # the status AFTER the request so we always observe at least one
+        # fresh snapshot — useful if the install completed between the
+        # caller's previous call and now.
+        while True:
+            response = await client.post(
+                f"sessions/{sessionId}/device/listAppInstallations",
+            )
+            if response.status_code >= 400:
+                return {
+                    "error": (
+                        f"Listing app installations failed: "
+                        f"{response.status_code}"
+                    ),
+                    "sessionId": sessionId,
+                    "installationId": installationId,
+                    "details": _safe_json(response),
+                }
+
+            body = response.json() if response.content else {}
+            installations = body.get("appInstallations") or []
+            match = next(
+                (
+                    item
+                    for item in installations
+                    if item.get("installationId") == installationId
+                ),
+                None,
+            )
+
+            if match is None:
+                return {
+                    "error": (
+                        f"Installation {installationId} not found for "
+                        f"session {sessionId}. It may have been cleaned "
+                        "up by the backend, or the id is wrong."
+                    ),
+                    "sessionId": sessionId,
+                    "installationId": installationId,
+                }
+
+            last_installation = match
+            last_status = match.get("status")
+
+            if last_status not in APP_INSTALL_PENDING_STATES:
+                break
+
+            if loop.time() >= deadline:
+                # Ran out of budget for this call. Hand control back to
+                # the LLM with a directive to call us again — the install
+                # is still progressing on the backend, we just can't hold
+                # the MCP channel open any longer.
+                return {
+                    "sessionId": sessionId,
+                    "installationId": installationId,
+                    **(last_installation or {}),
+                    "status": last_status or "PENDING",
+                    "timeoutSeconds": int(APP_INSTALL_POLL_TIMEOUT_SECONDS),
+                    "next_action": {
+                        "tool": "waitForAppInstallation",
+                        "arguments": {
+                            "sessionId": sessionId,
+                            "installationId": installationId,
+                        },
+                        "message": (
+                            "Installation is still PENDING after "
+                            f"{int(APP_INSTALL_POLL_TIMEOUT_SECONDS)}s. "
+                            "Call waitForAppInstallation again with the "
+                            "same sessionId and installationId. Keep "
+                            "calling until status is no longer PENDING."
+                        ),
+                    },
+                }
+
+            await asyncio.sleep(APP_INSTALL_POLL_INTERVAL_SECONDS)
+
+        result: Dict[str, Any] = {
+            "sessionId": sessionId,
+            **(last_installation or {}),
+        }
+
+        if last_status == "ERROR":
+            # Surface a top-level ``error`` so the caller doesn't have to
+            # introspect status to realize the install failed. Preserve
+            # whatever the backend reported under ``details``.
+            error_detail = (
+                (last_installation or {}).get("error")
+                or (last_installation or {}).get("detail")
+                or (last_installation or {}).get("message")
+                or "App installation failed. See details for the backend response."
+            )
+            result["error"] = (
+                f"Installation {installationId} failed: {error_detail}"
+            )
+
+        return result
 
     @server.tool()
     async def push_file_to_device(
