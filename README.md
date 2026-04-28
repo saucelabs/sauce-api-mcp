@@ -1,3 +1,5 @@
+[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/saucelabs-sauce-api-mcp-badge.png)](https://mseep.ai/app/saucelabs-sauce-api-mcp)
+
 # Sauce Labs MCP Server
 
 [//]: # (mcp-name: io.github.saucelabs-sample-test-frameworks/sauce-api-mcp)
