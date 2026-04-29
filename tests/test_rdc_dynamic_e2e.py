@@ -938,16 +938,16 @@ class TestProductionCodeIssues:
 
     def test_validate_path_rejects_traversal(self):
         """Path traversal attempts are coerced inside SAFE_FILE_DIR via basename strip."""
-        from sauce_api_mcp.rdc_dynamic import _validate_path, SAFE_FILE_DIR
-        resolved = _validate_path("../../etc/passwd")
+        from sauce_api_mcp.shared.file_utils import validate_path, SAFE_FILE_DIR
+        resolved = validate_path("../../etc/passwd")
         assert resolved.startswith(os.path.realpath(SAFE_FILE_DIR))
         assert resolved.endswith("passwd")
         assert "/etc/passwd" not in resolved
 
     def test_validate_path_accepts_plain_filename(self):
         """Plain filenames resolve to SAFE_FILE_DIR/<name>."""
-        from sauce_api_mcp.rdc_dynamic import _validate_path, SAFE_FILE_DIR
-        resolved = _validate_path("app.apk")
+        from sauce_api_mcp.shared.file_utils import validate_path, SAFE_FILE_DIR
+        resolved = validate_path("app.apk")
         assert resolved == os.path.realpath(os.path.join(SAFE_FILE_DIR, "app.apk"))
 
     @pytest.mark.asyncio
