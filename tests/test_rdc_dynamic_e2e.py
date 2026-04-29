@@ -296,10 +296,11 @@ class TestToolGeneration:
         """
         tools = await compat_get_tools(offline_server)
         expected = {
-            "listDevices", "listDeviceStatus", "createSession", "getSession",
+            "listDevices", "listDeviceStatus", "createSession",
             "deleteSession", "listSessions", "executeShellCommand", "launchApp",
             "openUrl", "installApp", "proxy_http", "listAppiumVersions",
             "startAppiumServer", "listAppInstallations", "uninstallApp",
+            "waitForAppInstallation",
             "listFiles", "removeFile", "statFile",
             "startNetworkCapture", "stopNetworkCapture",
             "setNetworkConditions", "resetNetworkConditions",
