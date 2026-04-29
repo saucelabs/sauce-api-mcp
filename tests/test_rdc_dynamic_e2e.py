@@ -250,11 +250,14 @@ class TestToolGeneration:
 
     @pytest.mark.asyncio
     async def test_total_tool_count(self, offline_server):
-        """Server should have 31 tools (27 auto + 4 manual).
+        """Server should have 31 tools (24 auto + 7 manual).
 
-        The 4 manual tools are push_file_to_device, pull_file_from_device,
-        take_screenshot, and proxy_http. proxy_http replaces six
-        method-specific auto-generated tools (proxyGet/Post/...).
+        The 7 manual tools are createSession, installApp,
+        waitForAppInstallation, push_file_to_device,
+        pull_file_from_device, take_screenshot, and proxy_http.
+        proxy_http replaces six method-specific auto-generated tools
+        (proxyGet/Post/...). createSession, installApp replace their
+        auto-generated counterparts and add waitForAppInstallation.
         """
         tools = await compat_get_tools(offline_server)
         assert len(tools) == 31, (
@@ -273,9 +276,10 @@ class TestToolGeneration:
 
     @pytest.mark.asyncio
     async def test_manual_tools_registered(self, offline_server):
-        """The 4 manual tools should be present."""
+        """The 7 manual tools should be present."""
         tools = await compat_get_tools(offline_server)
         manual_names = {
+            "createSession", "installApp", "waitForAppInstallation",
             "push_file_to_device", "take_screenshot",
             "pull_file_from_device", "proxy_http",
         }
@@ -292,10 +296,11 @@ class TestToolGeneration:
         """
         tools = await compat_get_tools(offline_server)
         expected = {
-            "listDevices", "listDeviceStatus", "createSession", "getSession",
+            "listDevices", "listDeviceStatus", "createSession",
             "deleteSession", "listSessions", "executeShellCommand", "launchApp",
             "openUrl", "installApp", "proxy_http", "listAppiumVersions",
             "startAppiumServer", "listAppInstallations", "uninstallApp",
+            "waitForAppInstallation",
             "listFiles", "removeFile", "statFile",
             "startNetworkCapture", "stopNetworkCapture",
             "setNetworkConditions", "resetNetworkConditions",
@@ -378,12 +383,12 @@ class TestToolSchemaValidation:
 
     @pytest.mark.asyncio
     async def test_create_session_has_body_params(self, offline_server):
-        """createSession should have device/configuration body params."""
+        """createSession should have os and optional deviceName params."""
         tools = await compat_get_tools(offline_server)
         params = tools["createSession"].parameters
         props = params.get("properties", {})
-        assert "device" in props or "configuration" in props, (
-            f"createSession params missing body fields. Has: {list(props.keys())}"
+        assert "os" in props, (
+            f"createSession params missing 'os'. Has: {list(props.keys())}"
         )
 
     @pytest.mark.asyncio
@@ -482,7 +487,7 @@ class TestRefResolution:
 # ===================================================================
 
 class TestManualTools:
-    """Tests for the 3 manually-registered binary tools."""
+    """Tests for the manually-registered tools."""
 
     @pytest.mark.asyncio
     async def test_manual_tool_parameters(self, offline_server):
@@ -840,7 +845,7 @@ class TestErrorHandling:
 
     @pytest.mark.asyncio
     async def test_empty_spec_only_manual_tools(self):
-        """Server with empty spec should only have the 4 manual tools."""
+        """Server with empty spec should only have the 7 manual tools."""
         minimal_spec = {
             "openapi": "3.0.0",
             "info": {"title": "empty", "version": "0.0.1"},
@@ -848,11 +853,15 @@ class TestErrorHandling:
         }
         server = create_server(minimal_spec, "key", "user", "US_WEST")
         tools = await compat_get_tools(server)
-        assert len(tools) == 4, (
-            f"Expected 4 manual tools, got {len(tools)}: {sorted(tools.keys())}"
+        manual_names = {
+            "createSession", "installApp", "waitForAppInstallation",
+            "push_file_to_device", "pull_file_from_device",
+            "take_screenshot", "proxy_http",
+        }
+        assert len(tools) == len(manual_names), (
+            f"Expected {len(manual_names)} manual tools, got {len(tools)}: {sorted(tools.keys())}"
         )
-        for name in ("push_file_to_device", "pull_file_from_device",
-                     "take_screenshot", "proxy_http"):
+        for name in manual_names:
             assert name in tools, f"Manual tool '{name}' missing from {sorted(tools.keys())}"
 
     @pytest.mark.asyncio
@@ -938,16 +947,16 @@ class TestProductionCodeIssues:
 
     def test_validate_path_rejects_traversal(self):
         """Path traversal attempts are coerced inside SAFE_FILE_DIR via basename strip."""
-        from sauce_api_mcp.rdc_dynamic import _validate_path, SAFE_FILE_DIR
-        resolved = _validate_path("../../etc/passwd")
+        from sauce_api_mcp.shared.file_utils import validate_path, SAFE_FILE_DIR
+        resolved = validate_path("../../etc/passwd")
         assert resolved.startswith(os.path.realpath(SAFE_FILE_DIR))
         assert resolved.endswith("passwd")
         assert "/etc/passwd" not in resolved
 
     def test_validate_path_accepts_plain_filename(self):
         """Plain filenames resolve to SAFE_FILE_DIR/<name>."""
-        from sauce_api_mcp.rdc_dynamic import _validate_path, SAFE_FILE_DIR
-        resolved = _validate_path("app.apk")
+        from sauce_api_mcp.shared.file_utils import validate_path, SAFE_FILE_DIR
+        resolved = validate_path("app.apk")
         assert resolved == os.path.realpath(os.path.join(SAFE_FILE_DIR, "app.apk"))
 
     @pytest.mark.asyncio

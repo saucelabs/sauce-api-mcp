@@ -35,6 +35,8 @@ import yaml
 from fastmcp.server.openapi import FastMCPOpenAPI, MCPType
 from fastmcp.utilities.openapi import HTTPRoute
 
+from .shared.file_utils import validate_path
+
 logging.basicConfig(
     level=logging.INFO,
     stream=sys.stderr,
@@ -107,9 +109,6 @@ APP_INSTALL_POLL_INTERVAL_SECONDS = 2.0
 APP_INSTALL_POLL_TIMEOUT_SECONDS = 55.0
 APP_INSTALL_PENDING_STATES = {"PENDING"}
 
-# Safe directory for file operations (push/pull)
-SAFE_FILE_DIR = os.path.join(os.path.expanduser("~"), ".sauce-mcp", "files")
-
 
 def _safe_json(response: httpx.Response) -> Any:
     """Return the response body as parsed JSON, or fall back to text.
@@ -122,21 +121,6 @@ def _safe_json(response: httpx.Response) -> Any:
         return response.json()
     except Exception:
         return response.text
-
-
-def _validate_path(file_path: str) -> str:
-    """Validate that a file path resolves within SAFE_FILE_DIR.
-
-    Returns the resolved absolute path if safe, raises ValueError otherwise.
-    """
-    os.makedirs(SAFE_FILE_DIR, exist_ok=True)
-    resolved = os.path.realpath(os.path.join(SAFE_FILE_DIR, os.path.basename(file_path)))
-    if not resolved.startswith(os.path.realpath(SAFE_FILE_DIR)):
-        raise ValueError(
-            f"Path '{file_path}' resolves outside the safe directory. "
-            f"Files are restricted to {SAFE_FILE_DIR}"
-        )
-    return resolved
 
 
 SPEC_CACHE_DIR = os.path.join(os.path.expanduser("~"), ".sauce-mcp")
@@ -823,7 +807,7 @@ def create_server(
         :param device_path: Optional target path on the device.
         """
         try:
-            safe_path = _validate_path(local_file_path)
+            safe_path = validate_path(local_file_path)
         except ValueError as e:
             return {"error": str(e)}
 
@@ -886,7 +870,7 @@ def create_server(
             Defaults to the filename in ~/.sauce-mcp/files/.
         """
         try:
-            safe_path = _validate_path(
+            safe_path = validate_path(
                 local_save_path if local_save_path else device_file_path
             )
         except ValueError as e:

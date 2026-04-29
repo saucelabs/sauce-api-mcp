@@ -14,6 +14,7 @@ from .models import (
     LookupTeamsResponse,
     ErrorResponse
 )
+from .shared.file_utils import validate_path
 
 DATA_CENTERS = {
     "US_WEST": "https://api.us-west-1.saucelabs.com/",
@@ -1325,6 +1326,7 @@ class SauceLabsAgent:
                  400	Bad Request.
                  404	Not found.
         """
+        file_path = validate_path(file_path)
         if not os.path.exists(file_path):
             raise ValueError(f"File not found: {file_path}")
 
