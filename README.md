@@ -247,6 +247,8 @@ When you run `uv sync`, these become available as commands in the virtual enviro
    }
    ```
 
+   > **Note:** As a developer, your server binaries live inside the local `.venv/bin/` directory — not in your system Python's bin path. When configuring your MCP client (e.g., Claude Desktop's `claude_desktop_config.json`, Gemini CLI's `settings.json`, or via `claude mcp add` for Claude Code), make sure to point to the `.venv/bin/` paths from your cloned repo.
+
 ### Running Tests
 
 ```bash

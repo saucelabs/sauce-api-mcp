@@ -308,6 +308,170 @@ def _fix_component_schemas(route: HTTPRoute, component) -> None:
         component.output_schema = resolve_refs(component.output_schema)
 
 
+# Returned verbatim by the `get_device_log_streaming_instructions` tool.
+# __WS_URL__, __OUT_PATH__, and __SESSION_PLACEHOLDER__ are substituted at
+# call time so the playbook is copy-pasteable. Kept as a module-level
+# constant so the wording is easy to audit and evolve.
+_DEVICE_LOG_PLAYBOOK_TEMPLATE = """# Streaming a Sauce Labs device log to a file
+
+You're running in Claude Code and the user wants to watch logs from an app on a Sauce Labs device — probably to diagnose a crash, ANR, startup bug, or other runtime issue. Capture the device's log WebSocket to a file on disk, then query the file with standard tools.
+
+## Do this
+
+Start the recorder as a background Bash task:
+
+```bash
+source ~/.zshrc; websocat --basic-auth "$SAUCE_USERNAME:$SAUCE_ACCESS_KEY" --no-close __WS_URL__ writefile:__OUT_PATH__
+```
+
+Invoke via the `Bash` tool with `run_in_background: true`. Do not add `&`. Do not pipe stdout with `>`. Do not add `-u` or `-U`.
+
+The file is newline-delimited JSON, one WebSocket message per line. Read with `Read`, search with `grep`, parse with `jq`.
+
+## Why each piece is there (so you can make good calls at the edges)
+
+**`writefile:/abs/path`, not `> file`.**
+The Claude Code sandbox blocks the `fcntl(F_SETFL, O_NONBLOCK)` call that websocat issues when its stdout is a redirected regular file. The refused syscall surfaces as `Invalid argument (os error 22)` right after the WebSocket handshake and websocat exits. `writefile:` opens the file with blocking IO — no `fcntl`, no sandbox trip. Same bytes, same destination, different syscalls.
+
+**`--no-close`.**
+With `writefile:` as the sink, websocat still runs bidirectionally by default. The reverse direction (file → server) hits instant EOF because a `writefile:` peer has no read side. When any direction finishes, websocat politely sends a WebSocket close frame to the server. Almost every server reciprocates by closing the whole connection — so without this flag you'd get a burst of messages and then silence. `--no-close` suppresses the frame; the server doesn't know, keeps streaming.
+
+**No `-u` / `-U`.**
+These keep only one direction of the websocat pipe. Which direction depends on peer-type inference, so they silently break listeners about half the time. Plain bidirectional mode with `--no-close` is simpler and correct for read-only use.
+
+**`run_in_background: true`, not `cmd &`.**
+Shell-level backgrounding inside a foreground Bash tool call does not survive: the harness reaps the whole process group when the tool call returns. `run_in_background: true` registers a proper long-lived task with a handle you can monitor or kill across turns.
+
+**`source ~/.zshrc` with `;` not `&&`.**
+Shell state doesn't persist between Bash tool calls, so per-call sourcing is how the credentials become visible. zsh completion init can return non-zero harmlessly; `;` ignores that, `&&` would abort before websocat runs. One-time alternative: move the `SAUCE_*` exports to `~/.zshenv` so every non-interactive shell inherits them automatically.
+
+## Query the captured file
+
+Output is newline-delimited JSON at `__OUT_PATH__`. Typical volume is 100–300 lines/second — most of it iOS/Android system chatter, not the app under test. When you're ready to search, call the **`get_device_log_query_tips`** tool for the message-shape reference, app-filtering recipes, and tuned `jq` / `grep` starters. Do not `cat` the whole file into context.
+
+## Stopping
+
+Use the Claude Code background-task panel, kill the task via its handle, or `pkill -f 'websocat.*__SESSION_PLACEHOLDER__'`. The file stays; nothing further writes to it.
+
+## When things go wrong
+
+- **`Invalid argument (os error 22)` right after handshake** → your command lost `writefile:` and picked up `> file` somewhere. Restore `writefile:`.
+- **File has a short burst then stops** → you dropped `--no-close`, or added `-u`/`-U`. Put `--no-close` back; remove `-u`/`-U`.
+- **Empty file, websocat exits 1 immediately** → `SAUCE_USERNAME` / `SAUCE_ACCESS_KEY` aren't in this Bash call's shell. Confirm with `echo "USER=${SAUCE_USERNAME:+SET, len=${#SAUCE_USERNAME}}"`. If empty, `source ~/.zshrc` in the command or move exports to `~/.zshenv`.
+- **`websocat: command not found`** → `brew install websocat` (or platform equivalent), retry.
+- **404 on the WebSocket upgrade** → region mismatch between the URL and the region the session was created in.
+
+Do not wrap the recorder in a `while true` reconnect loop unless the user asked for it. For debug-loop work, a single session plus the option to relaunch is simpler, doesn't mask real disconnects, and avoids runaway reconnect spam filling the file.
+"""
+
+
+def _render_device_log_playbook(
+    base_url: str,
+    session_id: Optional[str],
+) -> str:
+    """Fill the playbook template with WS URL, output path, and session id."""
+    ws_base = base_url.replace("https://", "wss://").rstrip("/")
+    session_placeholder = session_id if session_id else "<session_id>"
+    ws_url = f"{ws_base}/socket/companion/{session_placeholder}"
+    out_path = f"/tmp/sauce-device-logs/{session_placeholder}.ndjson"
+    return (
+        _DEVICE_LOG_PLAYBOOK_TEMPLATE
+        .replace("__WS_URL__", ws_url)
+        .replace("__OUT_PATH__", out_path)
+        .replace("__SESSION_PLACEHOLDER__", session_placeholder)
+    )
+
+
+# Returned verbatim by the `get_device_log_query_tips` tool. Kept separate
+# from the streaming playbook because the two are consulted at different
+# times (streaming: one-shot setup; querying: iterative debugging) and
+# evolve on different schedules.
+_DEVICE_LOG_QUERY_TIPS = """# Debugging device logs captured via get_device_log_streaming_instructions
+
+The file is newline-delimited JSON: one WebSocket message per line, from a Sauce Labs device session. It's firehose-noisy — typically 100–300 messages/second, most from iOS/Android system processes, not the app under test. Filter first, then look.
+
+## Message shape to rely on
+
+Each `device.log.message` record has stable outer fields — use them, don't regex the raw line:
+
+| Field | Type | Use |
+|---|---|---|
+| `type` | `"device.log.message"` | Filter out `device.state.update` and `device.har.entry`. |
+| `level` | `"INFO"` \\| `"ERROR"` | Coarse triage; outer `level` only has these two values in practice. |
+| `processId` | int | Narrow to the app once you know its pid. |
+| `timestamp` | `"YYYY-MM-DD HH:MM:SS.000"` (device clock, second granularity) | Time-window filter. |
+| `message` | string | Actual content. Internal format: `TS\\tLEVEL:\\tPROC(SUBSYS)[PID] <SEV>: body`. |
+
+Two other message types show up:
+
+- `device.state.update` — session heartbeat, `value.state` is `"ONLINE"` / similar. Confirms the session was alive during a window.
+- `device.har.entry` — network HAR entries under `value.event.{request,response,timings}`. Useful for reconstructing what the app called over the network.
+
+The **iOS severity** embedded in `.message` (`<Error>`, `<Fault>`, `<Notice>`, `<Default>`, `<Debug>`) is richer than the outer `level` and not always aligned with it. iOS `<Error>` lines sometimes arrive with outer `level: "INFO"`. Match both if you care about all errors.
+
+## Start narrow, widen only if empty
+
+Biggest single lever: **filter by the app name in the message body**. Most volume is system chatter; the app is a small fraction.
+
+```bash
+jq -c 'select(.type=="device.log.message" and (.message | contains("AppName")))' FILE | head -200
+```
+
+For iOS, `AppName` matches the process-name prefix shown in the log (e.g. `FakeCounterApp(UIKitCore)[1290]`). For Android, use the package name or tag.
+
+Once you spot the app's pid, pivot to pid for a full process trace:
+
+```bash
+jq -c 'select(.processId == 1290)' FILE | head -200
+```
+
+## Common recipes
+
+```bash
+# Outer-level errors
+jq -c 'select(.level=="ERROR")' FILE | head -50
+
+# iOS-level errors and faults (catches what outer-level misses)
+jq -c 'select(.message | test("<Error>|<Fault>"))' FILE | head -50
+
+# Anything crash-shaped
+jq -c 'select(.message | test("(?i)crash|fatal|exception|abort|sigabrt|sigsegv"))' FILE
+
+# Time window (device clock)
+jq -c 'select(.timestamp >= "2026-04-24 03:21:25" and .timestamp <= "2026-04-24 03:21:35")' FILE
+
+# Network requests the app made
+jq -c 'select(.type=="device.har.entry") | .value.event.request | {method, url, status: .response.status}' FILE
+
+# Device state heartbeats (did the session stay online?)
+jq -c 'select(.type=="device.state.update")' FILE
+
+# Strip the duplicated TS/LEVEL prefix for readability
+jq -r 'select(.type=="device.log.message") | .message' FILE | sed -E 's/^[0-9-]+ [0-9:.]+[[:space:]]+[A-Z]+:[[:space:]]+//'
+```
+
+## Noise to strip
+
+- `<decode: bad range for [%p] got [...]>` — os_log couldn't decode a pointer format arg. Not a real error. Drop with `grep -v '<decode: bad range'` or `jq 'select(.message | test("<decode: bad range") | not)'`.
+- Kernel (`pid 0`), `wifid`, `remoted`, `apsd`-type system processes dominate volume. If you're debugging app behavior, prefer a positive match on the app name over trying to enumerate noisy pids.
+
+## Timestamps: things to know
+
+- `.timestamp` is the **device clock** in the device's timezone (Sauce devices are often on LA time), not your host wall clock. Don't correlate directly; correlate via file ordering or the first `device.state.update`.
+- Granularity is **one second** (millis always `.000`). Adjacent messages in the same second are ordered by file position, not timestamp.
+
+## If the file is larger than you want to scan
+
+- Check size first: `wc -l FILE`. Over ~50k lines, narrow before working:
+  ```bash
+  jq -c 'select(.message | contains("AppName"))' FILE > /tmp/narrowed.ndjson
+  ```
+  then work from the narrowed file.
+- Always `| head -N` at every step. Never pipe the whole file into context.
+- If the user knows roughly when the bug happened, a time-window filter is the cheapest first cut.
+"""
+
+
 def create_server(
     spec: dict,
     access_key: str,
@@ -968,6 +1132,47 @@ def create_server(
         if "json" in content_type:
             return response.json()
         return {"status": response.status_code, "text": response.text}
+
+    @server.tool()
+    async def get_device_log_streaming_instructions(
+        sessionId: Optional[str] = None,
+    ) -> str:
+        """
+        Return a ready-to-use playbook for streaming a device session's log
+        WebSocket to a local file on the user's machine, so the logs can be
+        grepped, tailed, and parsed with standard Unix tools.
+
+        Use whenever the user wants to debug an app running on a Sauce Labs
+        device, asks to inspect/tail/capture/record device logs, is
+        investigating a crash, ANR, hang, or runtime bug, or mentions watching
+        logcat or os_log output from a device session. The playbook covers the
+        exact command to run, why naive setups (shell `>` redirect, `&`
+        backgrounding, `-u` flag) fail inside Claude Code's sandbox, and how
+        to query the captured file.
+
+        :param sessionId: Optional session ID from createSession. If provided,
+            the returned command is pre-filled with it; if omitted, the
+            command contains a `<session_id>` placeholder.
+        """
+        return _render_device_log_playbook(base_url, sessionId)
+
+    @server.tool()
+    async def get_device_log_query_tips() -> str:
+        """
+        Return practical guidance for searching a device-log NDJSON file
+        captured via get_device_log_streaming_instructions: the message-shape
+        reference, app-name filtering recipes, and tuned jq/grep starter
+        queries.
+
+        Use whenever the user wants to inspect, grep, tail, filter, or
+        otherwise make sense of the captured log file — for example when
+        hunting a crash, ANR, error, or specific event, narrowing to the app
+        under test, extracting HAR entries, or reducing a large file to a
+        workable slice. The file is firehose-noisy (100-300 msg/sec, mostly
+        system chatter), so consulting this tool before searching avoids
+        dumping the whole file into context and helps zero in on app signal.
+        """
+        return _DEVICE_LOG_QUERY_TIPS
 
     return server
 
