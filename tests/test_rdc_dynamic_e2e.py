@@ -250,9 +250,10 @@ class TestToolGeneration:
 
     @pytest.mark.asyncio
     async def test_total_tool_count(self, offline_server):
-        """Server should have 31 tools (27 auto + 4 manual).
+        """Server should have 31 tools (24 auto + 7 manual).
 
-        The 4 manual tools are push_file_to_device, pull_file_from_device,
+        The 7 manual tools are createSession, installApp,
+        waitForAppInstallation, push_file_to_device, pull_file_from_device,
         take_screenshot, and proxy_http. proxy_http replaces six
         method-specific auto-generated tools (proxyGet/Post/...).
         """
@@ -273,9 +274,10 @@ class TestToolGeneration:
 
     @pytest.mark.asyncio
     async def test_manual_tools_registered(self, offline_server):
-        """The 4 manual tools should be present."""
+        """The 7 manual tools should be present."""
         tools = await compat_get_tools(offline_server)
         manual_names = {
+            "createSession", "installApp", "waitForAppInstallation",
             "push_file_to_device", "take_screenshot",
             "pull_file_from_device", "proxy_http",
         }
@@ -317,6 +319,7 @@ class TestToolGeneration:
         """Auto-generated tools should have parameters with type=object."""
         tools = await compat_get_tools(offline_server)
         manual_names = {
+            "createSession", "installApp", "waitForAppInstallation",
             "push_file_to_device", "take_screenshot",
             "pull_file_from_device", "proxy_http",
         }
