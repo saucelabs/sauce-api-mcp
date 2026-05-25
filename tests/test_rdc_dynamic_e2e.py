@@ -250,9 +250,10 @@ class TestToolGeneration:
 
     @pytest.mark.asyncio
     async def test_total_tool_count(self, offline_server):
-        """Server should have 31 tools (27 auto + 4 manual).
+        """Server should have 31 tools (24 auto + 7 manual).
 
-        The 4 manual tools are push_file_to_device, pull_file_from_device,
+        The 7 manual tools are createSession, installApp,
+        waitForAppInstallation, push_file_to_device, pull_file_from_device,
         take_screenshot, and proxy_http. proxy_http replaces six
         method-specific auto-generated tools (proxyGet/Post/...).
         """
@@ -273,9 +274,10 @@ class TestToolGeneration:
 
     @pytest.mark.asyncio
     async def test_manual_tools_registered(self, offline_server):
-        """The 4 manual tools should be present."""
+        """The 7 manual tools should be present."""
         tools = await compat_get_tools(offline_server)
         manual_names = {
+            "createSession", "installApp", "waitForAppInstallation",
             "push_file_to_device", "take_screenshot",
             "pull_file_from_device", "proxy_http",
         }
@@ -292,7 +294,7 @@ class TestToolGeneration:
         """
         tools = await compat_get_tools(offline_server)
         expected = {
-            "listDevices", "listDeviceStatus", "createSession", "getSession",
+            "listDevices", "listDeviceStatus", "createSession",
             "deleteSession", "listSessions", "executeShellCommand", "launchApp",
             "openUrl", "installApp", "proxy_http", "listAppiumVersions",
             "startAppiumServer", "listAppInstallations", "uninstallApp",
@@ -317,6 +319,7 @@ class TestToolGeneration:
         """Auto-generated tools should have parameters with type=object."""
         tools = await compat_get_tools(offline_server)
         manual_names = {
+            "createSession", "installApp", "waitForAppInstallation",
             "push_file_to_device", "take_screenshot",
             "pull_file_from_device", "proxy_http",
         }
@@ -378,13 +381,27 @@ class TestToolSchemaValidation:
 
     @pytest.mark.asyncio
     async def test_create_session_has_body_params(self, offline_server):
-        """createSession should have device/configuration body params."""
+        """createSession should expose the flattened manual-tool params."""
         tools = await compat_get_tools(offline_server)
         params = tools["createSession"].parameters
         props = params.get("properties", {})
-        assert "device" in props or "configuration" in props, (
-            f"createSession params missing body fields. Has: {list(props.keys())}"
+        required = params.get("required", [])
+        assert "os" in props, (
+            f"createSession params missing 'os'. Has: {list(props.keys())}"
         )
+        assert "os" in required, (
+            f"createSession should require 'os'. required={required}"
+        )
+        for optional_field in [
+            "deviceName",
+            "sessionDuration",
+            "tunnelName",
+            "tunnelOwner",
+        ]:
+            assert optional_field in props, (
+                f"createSession params missing '{optional_field}'. "
+                f"Has: {list(props.keys())}"
+            )
 
     @pytest.mark.asyncio
     async def test_list_device_status_has_query_params(self, offline_server):
@@ -840,7 +857,7 @@ class TestErrorHandling:
 
     @pytest.mark.asyncio
     async def test_empty_spec_only_manual_tools(self):
-        """Server with empty spec should only have the 4 manual tools."""
+        """Server with empty spec should only have the 7 manual tools."""
         minimal_spec = {
             "openapi": "3.0.0",
             "info": {"title": "empty", "version": "0.0.1"},
@@ -848,11 +865,18 @@ class TestErrorHandling:
         }
         server = create_server(minimal_spec, "key", "user", "US_WEST")
         tools = await compat_get_tools(server)
-        assert len(tools) == 4, (
-            f"Expected 4 manual tools, got {len(tools)}: {sorted(tools.keys())}"
+        assert len(tools) == 7, (
+            f"Expected 7 manual tools, got {len(tools)}: {sorted(tools.keys())}"
         )
-        for name in ("push_file_to_device", "pull_file_from_device",
-                     "take_screenshot", "proxy_http"):
+        for name in (
+            "createSession",
+            "installApp",
+            "waitForAppInstallation",
+            "proxy_http",
+            "push_file_to_device",
+            "pull_file_from_device",
+            "take_screenshot",
+        ):
             assert name in tools, f"Manual tool '{name}' missing from {sorted(tools.keys())}"
 
     @pytest.mark.asyncio
