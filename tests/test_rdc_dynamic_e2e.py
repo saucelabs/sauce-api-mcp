@@ -528,7 +528,7 @@ class TestManualTools:
     @pytest.mark.asyncio
     async def test_manual_tools_not_openapi_tools(self, offline_server):
         """Manual tools should not be OpenAPITool instances."""
-        from fastmcp.server.openapi.components import OpenAPITool
+        from fastmcp.server.providers.openapi.components import OpenAPITool
         tools = await compat_get_tools(offline_server)
         for name in ["push_file_to_device", "take_screenshot", "pull_file_from_device"]:
             assert not isinstance(tools[name], OpenAPITool), (
@@ -901,7 +901,7 @@ class TestErrorHandling:
     @pytest.mark.asyncio
     async def test_route_map_fn_excludes_correctly(self):
         """route_map_fn should return EXCLUDE for binary paths, None otherwise."""
-        from fastmcp.server.openapi import MCPType
+        from fastmcp.server.providers.openapi import MCPType
         from fastmcp.utilities.openapi import HTTPRoute
 
         for excluded_path in EXCLUDED_PATHS:

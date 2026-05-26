@@ -314,8 +314,8 @@ def create_server(
     access_key: str,
     username: str,
     region: str = "US_WEST",
-) -> FastMCPOpenAPI:
-    """Create the FastMCPOpenAPI server with manual tools for binary endpoints."""
+) -> FastMCP:
+    """Create the FastMCP server with manual tools for binary endpoints."""
     base_url = DATA_CENTERS[region.upper()]
 
     async def _inject_mcp_headers(request: httpx.Request) -> None:
