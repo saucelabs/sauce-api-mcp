@@ -32,7 +32,8 @@ from typing import Any, Dict, Literal, Optional
 import httpx
 import yaml
 
-from fastmcp.server.openapi import FastMCPOpenAPI, MCPType
+from fastmcp import FastMCP
+from fastmcp.server.providers.openapi import MCPType, OpenAPIProvider
 from fastmcp.utilities.openapi import HTTPRoute
 
 logging.basicConfig(
@@ -346,13 +347,13 @@ def create_server(
         },
     )
 
-    server = FastMCPOpenAPI(
+    provider = OpenAPIProvider(
         openapi_spec=spec,
         client=client,
-        name="SauceLabsRDCDynamic",
         route_map_fn=route_map_fn,
         mcp_component_fn=_fix_component_schemas,
     )
+    server = FastMCP("SauceLabsRDCDynamic", providers=[provider])
 
     # --- Manual tools for excluded endpoints ---
 
