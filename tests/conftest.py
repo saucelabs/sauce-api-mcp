@@ -52,6 +52,21 @@ async def compat_call_tool(server, name: str, arguments: dict):
     raise AttributeError("Server has neither call_tool() nor _tool_manager")
 
 
+def _extract_devices(data: dict):
+    """Return a device list across raw and shaped response formats."""
+    devices = data.get("devices")
+    if isinstance(devices, list):
+        return devices
+    result = data.get("result")
+    if isinstance(result, list):
+        return result
+    if isinstance(result, dict) and isinstance(result.get("items"), list):
+        return result["items"]
+    if isinstance(data.get("items"), list):
+        return data["items"]
+    return []
+
+
 # ---------------------------------------------------------------------------
 # Credential helpers
 # ---------------------------------------------------------------------------
