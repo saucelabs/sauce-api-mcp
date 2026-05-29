@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v1.2.0 (2026-05-29)
+
+### Documentation
+
+- Update README to reflect current architecture and tooling
+  ([#61](https://github.com/saucelabs/sauce-api-mcp/pull/61),
+  [`b925391`](https://github.com/saucelabs/sauce-api-mcp/commit/b925391e61df2b2bbd634d8be7012a905b20b0cc))
+
+
 ## v1.1.1-rc.2 (2026-05-29)
 
 ### Bug Fixes

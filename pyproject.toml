@@ -1,6 +1,6 @@
 [project]
 name = "sauce-api-mcp"
-version = "1.1.1-rc.2"
+version = "1.2.0"
 description = "MCP servers for Sauce Labs APIs (Core & RDC OpenAPI)"
 authors = [{name = "Sauce Labs Open Source", email = "opensource@saucelabs.com"}]
 license = {text = "Apache-2.0"}
