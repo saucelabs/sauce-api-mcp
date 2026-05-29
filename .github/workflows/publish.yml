@@ -56,6 +56,12 @@ jobs:
             semantic-release version --${{ inputs.bump_type }} --push
           fi
 
+      - name: Create GitHub Release
+        if: steps.semrel.outputs.released == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: semantic-release publish
+
       - name: Build package
         if: steps.semrel.outputs.released == 'true'
         run: python -m build
