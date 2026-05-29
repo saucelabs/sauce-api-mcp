@@ -18,10 +18,10 @@ EXCLUDED_OPERATION_IDS) and hand-written instead:
   - pushFile / takeScreenshot / pullFile: binary/multipart payloads.
   - proxy/http/...: collapsed into a single `proxy_http` tool that takes
     the HTTP verb as a parameter, instead of six separate tools.
-  - POST /sessions: replaced by `createSession`, which allocates a device
-    and returns the session payload immediately (no polling).  The session
-    is expected to be ACTIVE on return; callers should skip or retry if it
-    is not.
+  - POST /sessions and GET /sessions/{sessionId}: replaced by `createSession`,
+    which allocates a device and polls GET /sessions/{sessionId}
+    (bounded to ~55s) until the session becomes ACTIVE or fails.
+    This avoids callers having to implement their own polling loop.
   - installApp: replaced by a pair of tools (`installApp` +
     `waitForAppInstallation`). `installApp` starts the install and returns
     the installation id; `waitForAppInstallation` polls
