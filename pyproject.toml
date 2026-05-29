@@ -65,6 +65,7 @@ version_toml = ["pyproject.toml:project.version"]
 tag_format = "v{version}"
 commit_message = "chore(release): v{version} [skip ci]"
 build_command = '''jq --arg v "$NEW_VERSION" '.version = $v | .packages[0].version = $v' server.json > server.tmp && mv server.tmp server.json'''
+assets = ["server.json"]
 
 [tool.semantic_release.branches.main]
 match = "main"

@@ -1,6 +1,6 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-10-17/server.schema.json",
-  "name": "io.github.saucelabs-sample-test-frameworks/sauce-api-mcp",
+  "name": "io.github.saucelabs/sauce-api-mcp",
   "description": "An open-source MCP server that provides LLM access to the Sauce Labs API",
   "repository": {
     "url": "https://github.com/saucelabs/sauce-api-mcp",
