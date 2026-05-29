@@ -2,7 +2,6 @@ name: Build and Test
 
 on:
   push:
-    branches: [ main, develop ]
     tags: [ 'v*' ]  # Add this to trigger on tags
   pull_request:
     branches: [ main ]
