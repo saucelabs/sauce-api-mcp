@@ -55,3 +55,18 @@ include = ["sauce_api_mcp*"]
 
 [tool.setuptools.package-dir]
 "" = "src"
+
+# ---------------------------------------------------------------------------
+# python-semantic-release
+# ---------------------------------------------------------------------------
+
+[tool.semantic_release]
+version_toml = ["pyproject.toml:project.version"]
+tag_format = "v{version}"
+commit_message = "chore(release): v{version} [skip ci]"
+build_command = '''jq --arg v "$NEW_VERSION" '.version = $v | .packages[0].version = $v' server.json > server.tmp && mv server.tmp server.json'''
+
+[tool.semantic_release.branches.main]
+match = "main"
+prerelease = false
+

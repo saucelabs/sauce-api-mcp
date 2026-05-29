@@ -1,8 +1,6 @@
 name: Build and Test
 
 on:
-  push:
-    tags: [ 'v*' ]  # Add this to trigger on tags
   pull_request:
     branches: [ main ]
 
@@ -69,53 +67,3 @@ jobs:
         SAUCE_REGION: EU_CENTRAL
       run: python -m pytest -m "slow"
 
-  build:
-    runs-on: ubuntu-latest
-    needs: test-slow
-    steps:
-    - uses: actions/checkout@v6
-
-    - name: Set up Python
-      uses: actions/setup-python@v6
-      with:
-        python-version: "3.12"
-
-    - name: Install build dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install build twine
-
-    - name: Build package
-      run: python -m build
-
-    - name: Check package
-      run: twine check dist/*
-
-    - name: Upload build artifacts
-      uses: actions/upload-artifact@v7
-      with:
-        name: dist-files
-        path: dist/
-
-  release:
-    runs-on: ubuntu-latest
-    needs: build
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
-    steps:
-    - name: Download artifacts
-      uses: actions/download-artifact@v8
-      with:
-        name: dist-files
-        path: dist/
-
-    - name: Publish to TestPyPI
-      uses: pypa/gh-action-pypi-publish@release/v1
-      with:
-        password: ${{ secrets.TEST_PYPI_API_TOKEN }}
-        repository-url: https://test.pypi.org/legacy/
-
-    - name: Publish to PyPI
-      if: "!contains(github.ref, 'beta') && !contains(github.ref, 'rc') && !contains(github.ref, 'alpha')"
-      uses: pypa/gh-action-pypi-publish@release/v1
-      with:
-        password: ${{ secrets.PYPI_API_TOKEN }}
