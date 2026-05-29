@@ -2,7 +2,7 @@
 name = "sauce-api-mcp"
 version = "1.1.0"
 description = "MCP servers for Sauce Labs APIs (Core & RDC OpenAPI)"
-authors = [{name = "Marcus Merrell", email = "mmerrell@gmail.com"}]
+authors = [{name = "Sauce Labs Open Source", email = "opensource@saucelabs.com"}]
 license = {text = "Apache-2.0"}
 readme = "README.md"
 requires-python = ">=3.10"

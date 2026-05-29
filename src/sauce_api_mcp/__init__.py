@@ -6,8 +6,8 @@ Provides tools for managing jobs, builds, teams, users, and test assets.
 
 # Version information
 __version__ = "1.1.0"
-__author__ = "Marcus Merrell"
-__email__ = "marcus.merrell@saucelabs.com"
+__author__ = "Sauce Labs Open Source"
+__email__ = "opensource@saucelabs.com"
 
 from .main import SauceLabsAgent
 from .models import (
