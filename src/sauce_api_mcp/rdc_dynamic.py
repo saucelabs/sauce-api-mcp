@@ -2,16 +2,26 @@
 Dynamic OpenAPI-driven MCP server for Sauce Labs RDC v2 API.
 
 Auto-generates MCP tools from the official OpenAPI spec at startup using
-FastMCPOpenAPI, so the tool set is always up-to-date without code changes.
+FastMCP with an OpenAPIProvider, so the tool set is always up-to-date
+without code changes.  The server is constructed as:
+
+    provider = OpenAPIProvider(openapi_spec=spec, client=client, ...)
+    server = FastMCP("SauceLabsRDCDynamic", providers=[provider])
+
+Tools registered via the provider behave identically to hand-written
+tools from the caller's perspective; the only difference is that their
+schemas are derived from the OpenAPI spec rather than from Python
+function signatures.
 
 A few endpoints are excluded from auto-generation (see EXCLUDED_PATHS and
 EXCLUDED_OPERATION_IDS) and hand-written instead:
   - pushFile / takeScreenshot / pullFile: binary/multipart payloads.
   - proxy/http/...: collapsed into a single `proxy_http` tool that takes
     the HTTP verb as a parameter, instead of six separate tools.
-  - POST /sessions and GET /sessions/{sessionId}: replaced by a single
-    `createSession` tool that creates the session and polls until the
-    device is ready, so callers don't have to drive the polling loop.
+  - POST /sessions: replaced by `createSession`, which allocates a device
+    and returns the session payload immediately (no polling).  The session
+    is expected to be ACTIVE on return; callers should skip or retry if it
+    is not.
   - installApp: replaced by a pair of tools (`installApp` +
     `waitForAppInstallation`). `installApp` starts the install and returns
     the installation id; `waitForAppInstallation` polls
