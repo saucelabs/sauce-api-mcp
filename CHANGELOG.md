@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v1.1.1-rc.2 (2026-05-29)
+
+### Bug Fixes
+
+- Update server.json schema and guard MCP Registry publish
+  ([#60](https://github.com/saucelabs/sauce-api-mcp/pull/60),
+  [`1de3f94`](https://github.com/saucelabs/sauce-api-mcp/commit/1de3f94a466f17b30661725d0846f896acf5f486))
+
+
 ## v1.1.1-rc.1 (2026-05-29)
 
 ### Bug Fixes
