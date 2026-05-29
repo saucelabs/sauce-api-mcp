@@ -2,16 +2,26 @@
 Dynamic OpenAPI-driven MCP server for Sauce Labs RDC v2 API.
 
 Auto-generates MCP tools from the official OpenAPI spec at startup using
-FastMCPOpenAPI, so the tool set is always up-to-date without code changes.
+FastMCP with an OpenAPIProvider, so the tool set is always up-to-date
+without code changes.  The server is constructed as:
+
+    provider = OpenAPIProvider(openapi_spec=spec, client=client, ...)
+    server = FastMCP("SauceLabsRDCDynamic", providers=[provider])
+
+Tools registered via the provider behave identically to hand-written
+tools from the caller's perspective; the only difference is that their
+schemas are derived from the OpenAPI spec rather than from Python
+function signatures.
 
 A few endpoints are excluded from auto-generation (see EXCLUDED_PATHS and
 EXCLUDED_OPERATION_IDS) and hand-written instead:
   - pushFile / takeScreenshot / pullFile: binary/multipart payloads.
   - proxy/http/...: collapsed into a single `proxy_http` tool that takes
     the HTTP verb as a parameter, instead of six separate tools.
-  - POST /sessions and GET /sessions/{sessionId}: replaced by a single
-    `createSession` tool that creates the session and polls until the
-    device is ready, so callers don't have to drive the polling loop.
+  - POST /sessions and GET /sessions/{sessionId}: replaced by `createSession`,
+    which allocates a device and polls GET /sessions/{sessionId}
+    (bounded to ~55s) until the session becomes ACTIVE or fails.
+    This avoids callers having to implement their own polling loop.
   - installApp: replaced by a pair of tools (`installApp` +
     `waitForAppInstallation`). `installApp` starts the install and returns
     the installation id; `waitForAppInstallation` polls
@@ -32,7 +42,8 @@ from typing import Any, Dict, Literal, Optional
 import httpx
 import yaml
 
-from fastmcp.server.openapi import FastMCPOpenAPI, MCPType
+from fastmcp import FastMCP
+from fastmcp.server.providers.openapi import MCPType, OpenAPIProvider
 from fastmcp.utilities.openapi import HTTPRoute
 
 logging.basicConfig(
@@ -313,8 +324,8 @@ def create_server(
     access_key: str,
     username: str,
     region: str = "US_WEST",
-) -> FastMCPOpenAPI:
-    """Create the FastMCPOpenAPI server with manual tools for binary endpoints."""
+) -> FastMCP:
+    """Create the FastMCP server with manual tools for binary endpoints."""
     base_url = DATA_CENTERS[region.upper()]
 
     async def _inject_mcp_headers(request: httpx.Request) -> None:
@@ -346,13 +357,13 @@ def create_server(
         },
     )
 
-    server = FastMCPOpenAPI(
+    provider = OpenAPIProvider(
         openapi_spec=spec,
         client=client,
-        name="SauceLabsRDCDynamic",
         route_map_fn=route_map_fn,
         mcp_component_fn=_fix_component_schemas,
     )
+    server = FastMCP("SauceLabsRDCDynamic", providers=[provider])
 
     # --- Manual tools for excluded endpoints ---
 
