@@ -47,7 +47,7 @@ jobs:
         SAUCE_USERNAME: ${{ secrets.SAUCE_USERNAME }}
         SAUCE_ACCESS_KEY: ${{ secrets.SAUCE_ACCESS_KEY }}
         SAUCE_REGION: EU_CENTRAL
-      run: python -m pytest -m "live"
+      run: python -m pytest -m "live and not slow"
 
   test-slow:
     runs-on: ubuntu-latest
