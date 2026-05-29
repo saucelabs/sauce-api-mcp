@@ -78,7 +78,6 @@ jobs:
            contains(steps.semrel.outputs.version, 'rc'))
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
-          password: ${{ secrets.TEST_PYPI_API_TOKEN }}
           repository-url: https://test.pypi.org/legacy/
 
       - name: Publish to PyPI (stable releases)
@@ -88,18 +87,28 @@ jobs:
           !contains(steps.semrel.outputs.version, 'beta') &&
           !contains(steps.semrel.outputs.version, 'rc')
         uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          password: ${{ secrets.PYPI_API_TOKEN }}
 
       - name: Install MCP Publisher
-        if: steps.semrel.outputs.released == 'true'
+        if: |
+          steps.semrel.outputs.released == 'true' &&
+          !contains(steps.semrel.outputs.version, 'alpha') &&
+          !contains(steps.semrel.outputs.version, 'beta') &&
+          !contains(steps.semrel.outputs.version, 'rc')
         run: |
           curl -fsSL "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" | tar xz mcp-publisher
 
       - name: Login to MCP Registry
-        if: steps.semrel.outputs.released == 'true'
+        if: |
+          steps.semrel.outputs.released == 'true' &&
+          !contains(steps.semrel.outputs.version, 'alpha') &&
+          !contains(steps.semrel.outputs.version, 'beta') &&
+          !contains(steps.semrel.outputs.version, 'rc')
         run: ./mcp-publisher login github-oidc
 
       - name: Publish to MCP Registry
-        if: steps.semrel.outputs.released == 'true'
+        if: |
+          steps.semrel.outputs.released == 'true' &&
+          !contains(steps.semrel.outputs.version, 'alpha') &&
+          !contains(steps.semrel.outputs.version, 'beta') &&
+          !contains(steps.semrel.outputs.version, 'rc')
         run: ./mcp-publisher publish
