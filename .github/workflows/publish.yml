@@ -1,27 +1,99 @@
-name: Publish to MCP Registry
+name: Release
 
 on:
-  push:
-    tags:
-      - 'v*'
+  workflow_dispatch:
+    inputs:
+      bump_type:
+        description: 'Release type'
+        required: true
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+          - prerelease
+        default: patch
+      prerelease_token:
+        description: 'Pre-release token (alpha, beta, rc) — only used when bump_type is prerelease'
+        required: false
+        default: 'rc'
+
+concurrency:
+  group: release
+  cancel-in-progress: false
 
 jobs:
-  publish:
+  release:
     runs-on: ubuntu-latest
     permissions:
-      id-token: write
-      contents: read
+      id-token: write   # PyPI trusted publishing + MCP Registry OIDC
+      contents: write   # push version-bump commit and tag
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install tooling
+        run: |
+          python -m pip install --upgrade pip
+          pip install python-semantic-release build twine
+
+      - name: Bump version and push tag
+        id: semrel
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ "${{ inputs.bump_type }}" == "prerelease" ]; then
+            semantic-release version --as-prerelease --prerelease-token "${{ inputs.prerelease_token }}" --push
+          else
+            semantic-release version --${{ inputs.bump_type }} --push
+          fi
+
+      - name: Build package
+        if: steps.semrel.outputs.released == 'true'
+        run: python -m build
+
+      - name: Check package
+        if: steps.semrel.outputs.released == 'true'
+        run: twine check dist/*
+
+      - name: Publish to TestPyPI (pre-releases)
+        if: |
+          steps.semrel.outputs.released == 'true' &&
+          (contains(steps.semrel.outputs.version, 'alpha') ||
+           contains(steps.semrel.outputs.version, 'beta') ||
+           contains(steps.semrel.outputs.version, 'rc'))
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          password: ${{ secrets.TEST_PYPI_API_TOKEN }}
+          repository-url: https://test.pypi.org/legacy/
+
+      - name: Publish to PyPI (stable releases)
+        if: |
+          steps.semrel.outputs.released == 'true' &&
+          !contains(steps.semrel.outputs.version, 'alpha') &&
+          !contains(steps.semrel.outputs.version, 'beta') &&
+          !contains(steps.semrel.outputs.version, 'rc')
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          password: ${{ secrets.PYPI_API_TOKEN }}
 
       - name: Install MCP Publisher
+        if: steps.semrel.outputs.released == 'true'
         run: |
-          curl -L "https://github.com/modelcontextprotocol/registry/releases/download/v1.0.0/mcp-publisher_1.0.0_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" | tar xz mcp-publisher
+          curl -fsSL "https://github.com/modelcontextprotocol/registry/releases/download/v1.0.0/mcp-publisher_1.0.0_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" | tar xz mcp-publisher
 
       - name: Login to MCP Registry
+        if: steps.semrel.outputs.released == 'true'
         run: ./mcp-publisher login github-oidc
 
       - name: Publish to MCP Registry
+        if: steps.semrel.outputs.released == 'true'
         run: ./mcp-publisher publish
