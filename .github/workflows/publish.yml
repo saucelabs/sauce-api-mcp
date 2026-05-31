@@ -71,7 +71,8 @@ jobs:
             --title "$CURRENT_TAG" \
             --generate-notes \
             --notes-start-tag "$LAST_STABLE" \
-            --verify-tag
+            --verify-tag \
+            server.json
 
       - name: Create GitHub Release (pre-release)
         if: |
