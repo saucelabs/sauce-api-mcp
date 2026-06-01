@@ -56,11 +56,38 @@ jobs:
             semantic-release version --${{ inputs.bump_type }} --push
           fi
 
-      - name: Create GitHub Release
-        if: steps.semrel.outputs.released == 'true'
+      - name: Create GitHub Release (stable)
+        if: |
+          steps.semrel.outputs.released == 'true' &&
+          !contains(steps.semrel.outputs.version, 'alpha') &&
+          !contains(steps.semrel.outputs.version, 'beta') &&
+          !contains(steps.semrel.outputs.version, 'rc')
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: semantic-release publish
+        run: |
+          CURRENT_TAG="v${{ steps.semrel.outputs.version }}"
+          LAST_STABLE=$(git tag --sort=-version:refname | grep -v 'alpha\|beta\|rc' | grep -v "^${CURRENT_TAG}$" | head -1)
+          gh release create "$CURRENT_TAG" \
+            --title "$CURRENT_TAG" \
+            --generate-notes \
+            --notes-start-tag "$LAST_STABLE" \
+            --verify-tag \
+            server.json
+
+      - name: Create GitHub Release (pre-release)
+        if: |
+          steps.semrel.outputs.released == 'true' &&
+          (contains(steps.semrel.outputs.version, 'alpha') ||
+           contains(steps.semrel.outputs.version, 'beta') ||
+           contains(steps.semrel.outputs.version, 'rc'))
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "v${{ steps.semrel.outputs.version }}" \
+            --title "v${{ steps.semrel.outputs.version }}" \
+            --prerelease \
+            --generate-notes \
+            --verify-tag
 
       - name: Build package
         if: steps.semrel.outputs.released == 'true'

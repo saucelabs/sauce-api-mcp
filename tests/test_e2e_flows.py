@@ -94,7 +94,7 @@ class TestJobInvestigationFlow:
             assets = await live_core_agent.get_test_assets(job_id)
             assert isinstance(assets, dict)
             # If assets are available, try to get logs
-            if "error" not in assets and "sauce-log" in assets:
+            if "error" not in assets and assets.get("sauce-log") is not None:
                 logs = await live_core_agent.get_log_json_file(job_id)
                 assert isinstance(logs, (list, dict))
 
