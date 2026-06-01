@@ -418,10 +418,14 @@ class SauceLabsAgent:
         if isinstance(asset_list, dict) and "error" in asset_list:
             raise ValueError(f"Cannot get asset URL: {asset_list['error']}")
 
-        asset_url = asset_list.get(asset_key)
-        if asset_url is None:
+        if asset_key not in asset_list:
             raise ValueError(
                 f"Asset '{asset_key}' not found in job {job_id}. Available assets: {list(asset_list.keys())}")
+
+        asset_url = asset_list[asset_key]
+        if asset_url is None:
+            raise ValueError(
+                f"Asset '{asset_key}' was not generated for job {job_id} (key present but value is null)")
 
         if isinstance(asset_url, str):
             return f"rest/v1/{self.username}/jobs/{job_id}/assets/{asset_url}"
