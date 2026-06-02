@@ -51,9 +51,9 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           if [ "${{ inputs.bump_type }}" == "prerelease" ]; then
-            semantic-release version --as-prerelease --prerelease-token "${{ inputs.prerelease_token }}" --push
+            semantic-release version --as-prerelease --prerelease-token "${{ inputs.prerelease_token }}" --push --no-vcs-release
           else
-            semantic-release version --${{ inputs.bump_type }} --push
+            semantic-release version --${{ inputs.bump_type }} --push --no-vcs-release
           fi
 
       - name: Create GitHub Release (stable)
@@ -67,10 +67,14 @@ jobs:
         run: |
           CURRENT_TAG="v${{ steps.semrel.outputs.version }}"
           LAST_STABLE=$(git tag --sort=-version:refname | grep -v 'alpha\|beta\|rc' | grep -v "^${CURRENT_TAG}$" | head -1)
+          NOTES_START_TAG_ARG=""
+          if [ -n "$LAST_STABLE" ]; then
+            NOTES_START_TAG_ARG="--notes-start-tag $LAST_STABLE"
+          fi
           gh release create "$CURRENT_TAG" \
             --title "$CURRENT_TAG" \
             --generate-notes \
-            --notes-start-tag "$LAST_STABLE" \
+            $NOTES_START_TAG_ARG \
             --verify-tag \
             server.json
 
