@@ -2,6 +2,27 @@
 
 <!-- version list -->
 
+## v1.2.1 (2026-06-02)
+
+### Bug Fixes
+
+- **release**: Attach server.json to stable GitHub release
+  ([#62](https://github.com/saucelabs/sauce-api-mcp/pull/62),
+  [`551249f`](https://github.com/saucelabs/sauce-api-mcp/commit/551249f4fd0024c7cb0af57c664461e536a8ee01))
+
+- **release**: Generate full changelog from last stable tag on stable releases
+  ([#62](https://github.com/saucelabs/sauce-api-mcp/pull/62),
+  [`551249f`](https://github.com/saucelabs/sauce-api-mcp/commit/551249f4fd0024c7cb0af57c664461e536a8ee01))
+
+- **release**: Track server.json in PSR assets and fix registry server name
+  ([#62](https://github.com/saucelabs/sauce-api-mcp/pull/62),
+  [`551249f`](https://github.com/saucelabs/sauce-api-mcp/commit/551249f4fd0024c7cb0af57c664461e536a8ee01))
+
+- **tests**: Handle null asset values in get_asset_url and e2e flow
+  ([#62](https://github.com/saucelabs/sauce-api-mcp/pull/62),
+  [`551249f`](https://github.com/saucelabs/sauce-api-mcp/commit/551249f4fd0024c7cb0af57c664461e536a8ee01))
+
+
 ## v1.2.0 (2026-05-29)
 
 ### Documentation
