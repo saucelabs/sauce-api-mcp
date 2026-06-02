@@ -1,6 +1,6 @@
 # Sauce Labs MCP Server
 
-[//]: # (mcp-name: io.github.saucelabs-sample-test-frameworks/sauce-api-mcp)
+[//]: # (mcp-name: io.github.saucelabs/sauce-api-mcp)
 
 A Model Context Protocol (MCP) server that provides comprehensive integration with the Sauce Labs testing platform. This
 package includes two complementary MCP servers enabling AI assistants to interact with Sauce Labs' device cloud, manage
