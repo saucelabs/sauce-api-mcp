@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v1.2.2 (2026-06-02)
+
+### Bug Fixes
+
+- **registry**: Correct mcp-name org to io.github.saucelabs in README
+  ([#64](https://github.com/saucelabs/sauce-api-mcp/pull/64),
+  [`17881fa`](https://github.com/saucelabs/sauce-api-mcp/commit/17881fa151abb97cd68857faef1bdab3925de779))
+
+
 ## v1.2.1 (2026-06-02)
 
 ### Bug Fixes
