@@ -30,7 +30,7 @@ jobs:
       contents: write   # push version-bump commit and tag
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
