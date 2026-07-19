@@ -417,6 +417,8 @@ To point your MCP client at a local development checkout:
 }
 ```
 
+   > **Note:** As a developer, your server binaries live inside the local `.venv/bin/` directory — not in your system Python's bin path. When configuring your MCP client (e.g., Claude Desktop's `claude_desktop_config.json`, Gemini CLI's `settings.json`, or via `claude mcp add` for Claude Code), make sure to point to the `.venv/bin/` paths from your cloned repo.
+
 ### Running Tests
 
 Tests are split into three groups:
