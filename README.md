@@ -8,7 +8,7 @@ test jobs, analyze builds, and monitor testing infrastructure through natural la
 
 ## Servers
 
-This package provides two separate MCP servers optimized for different use cases:
+This package provides three separate MCP servers optimized for different use cases:
 
 **sauce-api-mcp** (Core Server) — Full Sauce Labs API integration for account management, device discovery, job
 analysis, builds, storage, and tunnels.
@@ -18,7 +18,13 @@ from the official Sauce Labs OpenAPI spec using [FastMCP](https://github.com/jlo
 so the tool set is always up-to-date without code changes. Includes a small set of handwritten tools for endpoints that
 need special handling (binary payloads, session lifecycle, app installation polling).
 
-Both servers can be configured simultaneously in your LLM client for full Sauce Labs coverage.
+**sauce-api-mcp-mad** (Mobile App Distribution Server) — Connects to a Mobile App Distribution (MAD / TestFairy)
+instance and wraps its `/api/v3` REST API: list apps and builds, upload builds, get download links, notify testers,
+and browse testers and groups. Because every MAD customer runs on their own instance, this server is configured with
+the instance base URL (`MAD_BASE_URL`, e.g. `https://acme.testfairy.com`) and a MAD API key (`MAD_API_KEY`, found
+under Settings → API Key in MAD) instead of Sauce Labs credentials.
+
+All servers can be configured simultaneously in your LLM client for full Sauce Labs coverage.
 
 ## Features
 
@@ -48,7 +54,8 @@ Both servers can be configured simultaneously in your LLM client for full Sauce 
 
 - Python 3.10+
 - `pip`
-- Sauce Labs account with API access
+- Sauce Labs account with API access (core and RDC servers)
+- Access to a Mobile App Distribution instance (MAD server only)
 - Claude Desktop, Gemini CLI, Goose, or another MCP-compatible LLM client
 
 ## Installation
@@ -59,16 +66,18 @@ Install the package from PyPI:
 pip install sauce-api-mcp
 ```
 
-This installs both servers and registers their command-line entry points:
+This installs all servers and registers their command-line entry points:
 
 - `sauce-api-mcp` — core server
 - `sauce-api-mcp-rdc` — RDC OpenAPI server
+- `sauce-api-mcp-mad` — Mobile App Distribution server
 
 Verify installation:
 
 ```bash
 which sauce-api-mcp
 which sauce-api-mcp-rdc
+which sauce-api-mcp-mad
 ```
 
 ## Configuration for LLM Clients
@@ -102,12 +111,39 @@ which sauce-api-mcp-rdc
            "SAUCE_USERNAME": "your-sauce-username",
            "SAUCE_ACCESS_KEY": "your-sauce-access-key"
          }
+       },
+       "sauce-api-mcp-mad": {
+         "command": "/path/to/bin/sauce-api-mcp-mad",
+         "env": {
+           "MAD_BASE_URL": "https://your-instance.testfairy.com",
+           "MAD_API_KEY": "your-mad-api-key"
+         }
        }
      }
    }
    ```
 
 4. Restart Claude Desktop to load the servers.
+
+### Claude Code (CLI)
+
+Register the servers with the `claude mcp add` command (use `--scope user` to make them available in every
+directory, not just the current project):
+
+```bash
+claude mcp add sauce-api-mcp --scope user \
+  -e SAUCE_USERNAME=your-sauce-username \
+  -e SAUCE_ACCESS_KEY=your-sauce-access-key \
+  -- /path/to/bin/sauce-api-mcp
+
+claude mcp add mad --scope user \
+  -e MAD_BASE_URL=https://your-instance.testfairy.com \
+  -e MAD_API_KEY=your-mad-api-key \
+  -- /path/to/bin/sauce-api-mcp-mad
+```
+
+Then start a new `claude` session and run `/mcp` to verify the servers are connected. To remove one later:
+`claude mcp remove <name>`.
 
 ### Gemini CLI
 
@@ -173,10 +209,19 @@ Then omit the `env` block from your config. Both servers will automatically pick
 
 ### Required Environment Variables
 
+Core and RDC servers:
+
 | Variable           | Description                                            |
 |--------------------|--------------------------------------------------------|
 | `SAUCE_USERNAME`   | Your Sauce Labs username                               |
 | `SAUCE_ACCESS_KEY` | Your Sauce Labs access key (found in Account Settings) |
+
+MAD server:
+
+| Variable       | Description                                                             |
+|----------------|-------------------------------------------------------------------------|
+| `MAD_BASE_URL` | Your MAD instance URL, e.g. `https://your-instance.testfairy.com`       |
+| `MAD_API_KEY`  | Your MAD API key (found under **Settings → Profile** on your instance)  |
 
 ### Optional Environment Variables
 
@@ -190,6 +235,15 @@ Then omit the `env` block from your config. Both servers will automatically pick
 1. Log into your Sauce Labs account
 2. Navigate to **Account → User Settings**
 3. Copy your **Username** and **Access Key**
+
+### Getting Your MAD API Key
+
+1. Log into your Mobile App Distribution instance (e.g. `https://your-instance.testfairy.com`)
+2. Navigate to **Settings → Profile**
+3. Copy your **API Key**
+
+The MAD server is scoped to whatever your API key's organization role allows — the same permissions you have in
+the MAD web interface apply to every tool call.
 
 ## Troubleshooting Installation
 
@@ -366,6 +420,34 @@ evolves, but the categories below are always present.
 | `launchWebDriverAgent`    | Launch WDA on an iOS device                             |
 | `getWebDriverAgentStatus` | Check WDA status                                        |
 
+### MAD Server (`sauce-api-mcp-mad`)
+
+#### Projects (Apps)
+
+| Tool            | Description                                       |
+|-----------------|---------------------------------------------------|
+| `list_projects` | List the mobile apps in the organization          |
+| `get_project`   | Get detailed information about a specific app     |
+
+#### Builds
+
+| Tool                     | Description                                                   |
+|--------------------------|---------------------------------------------------------------|
+| `list_builds`            | List a project's builds, newest first                         |
+| `get_build`              | Get detailed information about a specific build               |
+| `upload_build`           | Upload an APK/AAB/IPA file (optionally with a symbols file)   |
+| `update_build`           | Update a build's release notes and tags                       |
+| `get_build_download_url` | Get a pre-signed URL to download a build's binary             |
+| `notify_build_testers`   | Email every tester on the build's project to install it       |
+
+#### Testers & Groups
+
+| Tool                 | Description                              |
+|----------------------|------------------------------------------|
+| `list_testers`       | List the organization's testers          |
+| `list_groups`        | List the organization's tester groups    |
+| `list_group_testers` | List the testers that belong to a group  |
+
 ## Development Setup
 
 ### Prerequisites
@@ -391,6 +473,7 @@ sauce-api-mcp/
 ├── src/sauce_api_mcp/
 │   ├── main.py              # Core server — hand-written MCP tools
 │   ├── rdc_dynamic.py       # RDC server — OpenAPIProvider + hand-written tools
+│   ├── mad.py               # MAD server — Mobile App Distribution /api/v3 tools
 │   ├── models.py            # Pydantic response models
 │   └── shared/              # Shared utilities
 ├── tests/                   # Test suite
@@ -404,9 +487,10 @@ sauce-api-mcp/
 ```bash
 uv run sauce-api-mcp
 uv run sauce-api-mcp-rdc
+uv run sauce-api-mcp-mad
 ```
 
-Both will print `Error: This server is not meant to be run interactively` — this is expected (they communicate over
+All will print `Error: This server is not meant to be run interactively` — this is expected (they communicate over
 stdio with MCP clients, not the terminal).
 
 To point your MCP client at a local development checkout:
