@@ -22,6 +22,7 @@ import sys
 import logging
 
 from mcp.server import FastMCP
+from mcp.types import ToolAnnotations
 from typing import Any, Dict, List, Optional, Union
 import httpx
 
@@ -59,23 +60,29 @@ class MADAgent:
             timeout=httpx.Timeout(30.0, read=600.0, write=600.0),
         )
 
+        # readOnlyHint lets a client tell reads from writes without hardcoding
+        # tool names, so a client that gates writes keeps working as tools change.
+        read_only = ToolAnnotations(readOnlyHint=True)
+        writes = ToolAnnotations(readOnlyHint=False)
+        sends_email = ToolAnnotations(readOnlyHint=False, destructiveHint=True)
+
         ## Tools
         ### Projects (apps)
-        self.mcp.tool()(self.list_projects)
-        self.mcp.tool()(self.get_project)
+        self.mcp.tool(annotations=read_only)(self.list_projects)
+        self.mcp.tool(annotations=read_only)(self.get_project)
 
         ### Builds
-        self.mcp.tool()(self.list_builds)
-        self.mcp.tool()(self.get_build)
-        self.mcp.tool()(self.upload_build)
-        self.mcp.tool()(self.update_build)
-        self.mcp.tool()(self.get_build_download_url)
-        self.mcp.tool()(self.notify_build_testers)
+        self.mcp.tool(annotations=read_only)(self.list_builds)
+        self.mcp.tool(annotations=read_only)(self.get_build)
+        self.mcp.tool(annotations=writes)(self.upload_build)
+        self.mcp.tool(annotations=writes)(self.update_build)
+        self.mcp.tool(annotations=read_only)(self.get_build_download_url)
+        self.mcp.tool(annotations=sends_email)(self.notify_build_testers)
 
         ### Testers & groups
-        self.mcp.tool()(self.list_testers)
-        self.mcp.tool()(self.list_groups)
-        self.mcp.tool()(self.list_group_testers)
+        self.mcp.tool(annotations=read_only)(self.list_testers)
+        self.mcp.tool(annotations=read_only)(self.list_groups)
+        self.mcp.tool(annotations=read_only)(self.list_group_testers)
 
         logging.info("MAD API client initialized for %s.", base_url)
 
