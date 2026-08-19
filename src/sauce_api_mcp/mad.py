@@ -9,8 +9,14 @@ with the instance base URL plus a MAD API key:
 
 Tools wrap the stable /api/v3 REST API and are scoped to whatever the
 API key's organization membership allows.
+
+Over an HTTP transport the caller may instead send its own `X-API-Key`
+header per request, which takes precedence over MAD_API_KEY. This lets one
+server process serve many users, each scoped to their own MAD permissions;
+MAD_API_KEY is then only a fallback and may be omitted entirely.
 """
 
+import argparse
 import os
 import sys
 import logging
@@ -20,6 +26,12 @@ from typing import Any, Dict, List, Optional, Union
 import httpx
 
 from .main import check_stdio_is_not_tty
+
+try:
+    from fastmcp.server.dependencies import get_http_headers
+except ImportError:  # pragma: no cover - older fastmcp without HTTP transports
+    def get_http_headers(*_args, **_kwargs) -> Dict[str, str]:
+        return {}
 
 logging.basicConfig(
     level=logging.INFO,
@@ -33,14 +45,17 @@ class MADAgent:
         self,
         mcp_server: FastMCP,
         base_url: str,
-        api_key: str,
+        api_key: Optional[str] = None,
     ):
         self.mcp = mcp_server
+
+        # Fallback only. The key is attached per request so a single process can
+        # serve callers who each supply their own X-API-Key.
+        self.default_api_key = api_key
 
         # Uploads can be hundreds of MB; the default 5s timeout is far too short.
         self.client = httpx.AsyncClient(
             base_url=base_url.rstrip("/"),
-            headers={"X-API-Key": api_key},
             timeout=httpx.Timeout(30.0, read=600.0, write=600.0),
         )
 
@@ -65,6 +80,17 @@ class MADAgent:
         logging.info("MAD API client initialized for %s.", base_url)
 
     # Not exposed to the Agent
+    def resolve_api_key(self) -> Optional[str]:
+        """Return the MAD API key for the call in flight.
+
+        An `X-API-Key` header on the inbound MCP request wins, so each caller is
+        scoped to its own MAD permissions. Outside an HTTP transport there are no
+        request headers and the configured key is used.
+        """
+        headers = get_http_headers(include={"x-api-key"})
+        return headers.get("x-api-key") or self.default_api_key
+
+    # Not exposed to the Agent
     async def mad_api_call(
         self,
         relative_endpoint: str,
@@ -79,6 +105,17 @@ class MADAgent:
         On HTTP errors the API's own JSON error body is passed through (plus
         the status code) so the model sees the real reason, not a stack trace.
         """
+        api_key = self.resolve_api_key()
+        if not api_key:
+            return {
+                "error": (
+                    "No MAD API key for this request. Send an X-API-Key header "
+                    "with the MCP request, or set MAD_API_KEY on the server."
+                ),
+                "status_code": 401,
+            }
+        auth = {"X-API-Key": api_key}
+
         try:
             if files or form_data:
                 request_files = {}
@@ -91,6 +128,7 @@ class MADAgent:
                         params=params,
                         files=request_files,
                         data=form_data or {},
+                        headers=auth,
                     )
                 finally:
                     for file_handle in request_files.values():
@@ -101,6 +139,7 @@ class MADAgent:
                     relative_endpoint,
                     params=params,
                     json=json_body,
+                    headers=auth,
                 )
 
             response.raise_for_status()
@@ -324,22 +363,36 @@ class MADAgent:
 
 
 def main():
-    if not check_stdio_is_not_tty():
+    parser = argparse.ArgumentParser(prog="sauce-api-mcp-mad")
+    parser.add_argument(
+        "--transport",
+        default=os.getenv("MAD_MCP_TRANSPORT", "stdio"),
+        choices=["stdio", "streamable-http", "sse"],
+        help="stdio for a local MCP client; streamable-http to serve many callers over HTTP.",
+    )
+    parser.add_argument("--host", default=os.getenv("MAD_MCP_HOST", "127.0.0.1"))
+    parser.add_argument("--port", type=int, default=int(os.getenv("MAD_MCP_PORT", "9000")))
+    args = parser.parse_args()
+
+    # Only the stdio transport speaks over the terminal's own pipes.
+    if args.transport == "stdio" and not check_stdio_is_not_tty():
         sys.exit(1)
 
-    mcp_server_instance = FastMCP("MADAgent")
+    mcp_server_instance = FastMCP("MADAgent", host=args.host, port=args.port)
 
     MAD_BASE_URL = os.getenv("MAD_BASE_URL")
     if MAD_BASE_URL is None:
         raise ValueError("MAD_BASE_URL environment variable is not set (e.g. https://acme.testfairy.com).")
 
+    # Over HTTP each caller supplies its own X-API-Key, so a server-wide key is
+    # optional there; stdio has no request headers and needs one.
     MAD_API_KEY = os.getenv("MAD_API_KEY")
-    if MAD_API_KEY is None:
+    if MAD_API_KEY is None and args.transport == "stdio":
         raise ValueError("MAD_API_KEY environment variable is not set.")
 
     MADAgent(mcp_server_instance, MAD_BASE_URL, MAD_API_KEY)
 
-    mcp_server_instance.run(transport="stdio")
+    mcp_server_instance.run(transport=args.transport)
 
 
 if __name__ == "__main__":
