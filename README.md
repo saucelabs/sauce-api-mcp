@@ -6,6 +6,13 @@ A Model Context Protocol (MCP) server that provides comprehensive integration wi
 package includes two complementary MCP servers enabling AI assistants to interact with Sauce Labs' device cloud, manage
 test jobs, analyze builds, and monitor testing infrastructure through natural language conversations.
 
+> [!TIP]
+> **Prefer a hosted, more feature-rich option?** [Sauce MCP](https://docs.saucelabs.com/sauce-ai/sauce-mcp/) is the
+> official MCP server hosted by Sauce Labs at `https://mcp.saucelabs.com`. There is nothing to install or update, and it
+> offers a broader tool set than this package, including live real-device control (tap, type, screenshot, app
+> install/launch), network capture, and AI-powered test case authoring, execution, and scheduling. See
+> [Connect your AI client](https://docs.saucelabs.com/sauce-ai/sauce-mcp-getting-started/) for setup instructions.
+
 ## Servers
 
 This package provides two separate MCP servers optimized for different use cases:
