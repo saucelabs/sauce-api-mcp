@@ -256,16 +256,23 @@ class TestToolGeneration:
 
     @pytest.mark.asyncio
     async def test_total_tool_count(self, offline_server):
-        """Server should have 31 tools (24 auto + 7 manual).
+        """Server should have at least 31 tools (24+ auto + 7 manual).
 
-        The 7 manual tools are createSession, installApp,
+        The spec is fetched live from GitHub, so new API endpoints raise the
+        auto-generated tool count over time; assert a floor rather than an
+        exact number. The 7 manual tools are createSession, installApp,
         waitForAppInstallation, push_file_to_device, pull_file_from_device,
         take_screenshot, and proxy_http. proxy_http replaces six
-        method-specific auto-generated tools (proxyGet/Post/...).
+        method-specific auto-generated tools (proxyGet/Post/...), which must
+        not reappear.
         """
         tools = await compat_get_tools(offline_server)
-        assert len(tools) == 31, (
-            f"Expected 31 tools, got {len(tools)}. Names: {sorted(tools.keys())}"
+        assert len(tools) >= 31, (
+            f"Expected at least 31 tools, got {len(tools)}. Names: {sorted(tools.keys())}"
+        )
+        proxy_auto = [n for n in tools if n.lower().startswith("proxy") and n != "proxy_http"]
+        assert not proxy_auto, (
+            f"Method-specific proxy tools reappeared: {proxy_auto}"
         )
 
     @pytest.mark.asyncio
