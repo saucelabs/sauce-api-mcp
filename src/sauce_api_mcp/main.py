@@ -1,7 +1,7 @@
 import base64
 import os
 
-from mcp.server import FastMCP
+from mcp.server import MCPServer
 from typing import Dict, Any, Union, Optional, List  # For type hinting dicts
 import httpx
 import sys
@@ -30,7 +30,7 @@ logging.basicConfig(
 class SauceLabsAgent:
     def __init__(
         self,
-        mcp_server: FastMCP,
+        mcp_server: MCPServer,
         access_key: str,
         username: str,
         region: str = "US_WEST",
@@ -1424,8 +1424,8 @@ def main():
     if not check_stdio_is_not_tty():
         sys.exit(1)
 
-    # Create the FastMCP server instance
-    mcp_server_instance = FastMCP("SauceLabsAgent")
+    # Create the MCP server instance
+    mcp_server_instance = MCPServer("SauceLabsAgent")
 
     import os
 
@@ -1443,7 +1443,7 @@ def main():
 
     sauce_agent = SauceLabsAgent(mcp_server_instance, SAUCE_ACCESS_KEY, SAUCE_USERNAME, SAUCE_REGION)
 
-    # Run the FastMCP server instance
+    # Run the MCP server instance
     mcp_server_instance.run(transport="stdio")
 
 if __name__ == "__main__":

@@ -12,7 +12,7 @@ import pytest
 import httpx
 from unittest.mock import MagicMock
 
-from mcp.server import FastMCP as MCPFastMCP
+from mcp.server import MCPServer
 
 from sauce_api_mcp.main import SauceLabsAgent
 
@@ -119,8 +119,8 @@ def live(cls_or_func):
 
 @pytest.fixture
 def mock_mcp_server():
-    """Create a mock FastMCP server that records tool registrations."""
-    server = MagicMock(spec=MCPFastMCP)
+    """Create a mock MCPServer that records tool registrations."""
+    server = MagicMock(spec=MCPServer)
     server.tool.return_value = lambda fn: fn
     server.resource.return_value = lambda fn: fn
     return server
@@ -182,7 +182,7 @@ def live_core_agent(live_credentials):
     """Function-scoped live SauceLabsAgent hitting real APIs.
     Created per-test to avoid event loop issues with httpx.AsyncClient."""
     username, access_key, region = live_credentials
-    mcp = MagicMock(spec=MCPFastMCP)
+    mcp = MagicMock(spec=MCPServer)
     mcp.tool.return_value = lambda fn: fn
     mcp.resource.return_value = lambda fn: fn
     agent = SauceLabsAgent(mcp, access_key, username, region)
