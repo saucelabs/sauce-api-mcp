@@ -85,7 +85,7 @@ class TestSauceApiCall:
         agent, requests = core_agent_with_mock()
         await agent.sauce_api_call("test/endpoint")
         assert requests[0].headers["User-Agent"] == USER_AGENT
-        assert "Sauce Labs Open Source MCP Server" in USER_AGENT
+        assert USER_AGENT == "Sauce OSS MCP Server"
 
     @pytest.mark.asyncio
     async def test_404_returns_response(self, core_agent_with_mock):
