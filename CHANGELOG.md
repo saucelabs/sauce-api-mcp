@@ -2,6 +2,105 @@
 
 <!-- version list -->
 
+## v1.3.0 (2026-10-22)
+
+### Bug Fixes
+
+- Return API errors instead of crashing in Core tools
+  ([#86](https://github.com/saucelabs/sauce-api-mcp/pull/86),
+  [`9fa7191`](https://github.com/saucelabs/sauce-api-mcp/commit/9fa71919d9f9278049631e4792c5967fe8371318))
+
+- **deps**: Adopt mcp 2.x and fastmcp 4.x
+  ([#82](https://github.com/saucelabs/sauce-api-mcp/pull/82),
+  [`6db1a16`](https://github.com/saucelabs/sauce-api-mcp/commit/6db1a16030562f4ec89964678913804ea8e16e0c))
+
+### Chores
+
+- **deps**: Bump actions/checkout from 6 to 7
+  ([#71](https://github.com/saucelabs/sauce-api-mcp/pull/71),
+  [`195523d`](https://github.com/saucelabs/sauce-api-mcp/commit/195523d30a64feeeb44175f5b2e0ab7f7bfb49aa))
+
+- **deps**: Bump actions/setup-python from 6 to 7
+  ([#74](https://github.com/saucelabs/sauce-api-mcp/pull/74),
+  [`9966106`](https://github.com/saucelabs/sauce-api-mcp/commit/99661065499a61ab572b427ec348d5a229599d87))
+
+- **deps**: Bump anyio from 4.12.0 to 4.14.2
+  ([#79](https://github.com/saucelabs/sauce-api-mcp/pull/79),
+  [`5acdf3a`](https://github.com/saucelabs/sauce-api-mcp/commit/5acdf3a0bd600db9196e0ac411a7cf267b1727bf))
+
+- **deps**: Bump cryptography from 46.0.7 to 48.0.1
+  ([#69](https://github.com/saucelabs/sauce-api-mcp/pull/69),
+  [`7e336e6`](https://github.com/saucelabs/sauce-api-mcp/commit/7e336e6f9f7f4a5a34f73437b88160ee492f06ff))
+
+- **deps**: Bump cryptography from 48.0.1 to 50.0.0
+  ([#75](https://github.com/saucelabs/sauce-api-mcp/pull/75),
+  [`5bf91e8`](https://github.com/saucelabs/sauce-api-mcp/commit/5bf91e8c3d5a365609b53dda7d59f8ffc1ceeaa1))
+
+- **deps**: Bump mcp from 1.24.0 to 1.28.1
+  ([#73](https://github.com/saucelabs/sauce-api-mcp/pull/73),
+  [`d970c2b`](https://github.com/saucelabs/sauce-api-mcp/commit/d970c2b12e5725073e6c8acd9aae15e68f8a6c83))
+
+- **deps**: Bump pydantic-settings from 2.12.0 to 2.14.2
+  ([#70](https://github.com/saucelabs/sauce-api-mcp/pull/70),
+  [`f4bc35b`](https://github.com/saucelabs/sauce-api-mcp/commit/f4bc35b7f401f8913bfb76dfdebfbfc1e7e32a85))
+
+- **deps**: Bump pyjwt from 2.12.0 to 2.13.0
+  ([#66](https://github.com/saucelabs/sauce-api-mcp/pull/66),
+  [`c5d40df`](https://github.com/saucelabs/sauce-api-mcp/commit/c5d40dfa0dc356b0a3ccdcd9291614b225582539))
+
+- **deps**: Bump pyjwt from 2.13.0 to 2.15.0
+  ([#80](https://github.com/saucelabs/sauce-api-mcp/pull/80),
+  [`3b8f5e2`](https://github.com/saucelabs/sauce-api-mcp/commit/3b8f5e2d7e674e13510673d993eaba237b55f6a4))
+
+- **deps**: Bump python-multipart from 0.0.27 to 0.0.31
+  ([#67](https://github.com/saucelabs/sauce-api-mcp/pull/67),
+  [`17702b2`](https://github.com/saucelabs/sauce-api-mcp/commit/17702b22e6a4c88ee3d840556b1d7065d79917a0))
+
+- **deps**: Bump starlette from 0.50.0 to 1.0.1
+  ([#65](https://github.com/saucelabs/sauce-api-mcp/pull/65),
+  [`834be75`](https://github.com/saucelabs/sauce-api-mcp/commit/834be75b64c83284e75c9079ba3a153c545c92ca))
+
+- **deps**: Bump starlette from 1.0.1 to 1.3.1
+  ([#68](https://github.com/saucelabs/sauce-api-mcp/pull/68),
+  [`1a5036d`](https://github.com/saucelabs/sauce-api-mcp/commit/1a5036de0c59dc4b350eba617c16f712f271835f))
+
+- **deps**: Bump urllib3 from 2.7.0 to 2.8.0
+  ([#81](https://github.com/saucelabs/sauce-api-mcp/pull/81),
+  [`769eba1`](https://github.com/saucelabs/sauce-api-mcp/commit/769eba1d5130eb7f77e2a5413d269b2ea03c78f2))
+
+### Continuous Integration
+
+- Run real-device slow tests one at a time
+  ([#83](https://github.com/saucelabs/sauce-api-mcp/pull/83),
+  [`1e0dd14`](https://github.com/saucelabs/sauce-api-mcp/commit/1e0dd142893ab55461c255e30e7f982e5c535182))
+
+### Documentation
+
+- Point README readers to the hosted Sauce MCP server
+  ([`6105cab`](https://github.com/saucelabs/sauce-api-mcp/commit/6105cabd6344ce3a3ce0627c8d6f3c0b006048ce))
+
+- Simplify tracking module docstring ([#85](https://github.com/saucelabs/sauce-api-mcp/pull/85),
+  [`ae49c7c`](https://github.com/saucelabs/sauce-api-mcp/commit/ae49c7c0019bb4cb6835ab0c5ff70a2bd2ea6f42))
+
+### Features
+
+- Add the server version to the User-Agent
+  ([#84](https://github.com/saucelabs/sauce-api-mcp/pull/84),
+  [`acf5b14`](https://github.com/saucelabs/sauce-api-mcp/commit/acf5b14c2649d9b0fd6d54f06136f6ec0e18d997))
+
+- Send OSS tracking headers on every request
+  ([#85](https://github.com/saucelabs/sauce-api-mcp/pull/85),
+  [`ae49c7c`](https://github.com/saucelabs/sauce-api-mcp/commit/ae49c7c0019bb4cb6835ab0c5ff70a2bd2ea6f42))
+
+- Set a User-Agent that identifies the MCP server
+  ([#84](https://github.com/saucelabs/sauce-api-mcp/pull/84),
+  [`acf5b14`](https://github.com/saucelabs/sauce-api-mcp/commit/acf5b14c2649d9b0fd6d54f06136f6ec0e18d997))
+
+- Use "Sauce OSS MCP Server" as the User-Agent
+  ([#84](https://github.com/saucelabs/sauce-api-mcp/pull/84),
+  [`acf5b14`](https://github.com/saucelabs/sauce-api-mcp/commit/acf5b14c2649d9b0fd6d54f06136f6ec0e18d997))
+
+
 ## v1.2.2 (2026-06-02)
 
 ### Bug Fixes
