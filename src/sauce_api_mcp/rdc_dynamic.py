@@ -47,6 +47,7 @@ from fastmcp.server.providers.openapi import MCPType, OpenAPIProvider
 from fastmcp.utilities.openapi import HTTPRoute
 
 from .shared import USER_AGENT
+from .shared.tracking import tracking_hook, tracking_params
 
 logging.basicConfig(
     level=logging.INFO,
@@ -332,11 +333,6 @@ def create_server(
     """Create the FastMCP server with manual tools for binary endpoints."""
     base_url = DATA_CENTERS[region.upper()]
 
-    async def _inject_mcp_headers(request: httpx.Request) -> None:
-        request.headers["X-SAUCE-MCP-SERVER"] = "rdc_dynamic"
-        request.headers["X-SAUCE-MCP-TRANSPORT"] = "stdio"
-        request.headers["X-SAUCE-MCP-USER"] = username
-
     async def _shape_response(response: httpx.Response) -> None:
         """Intercept large responses and truncate before they reach the LLM."""
         await response.aread()
@@ -355,9 +351,9 @@ def create_server(
         base_url=base_url,
         auth=httpx.BasicAuth(username, access_key),
         headers={"User-Agent": USER_AGENT},
-        params={"ai": "rdc_openapi_mcp"},
+        params=tracking_params("rdc"),
         event_hooks={
-            "request": [_inject_mcp_headers],
+            "request": [tracking_hook("rdc", username)],
             "response": [_shape_response],
         },
     )

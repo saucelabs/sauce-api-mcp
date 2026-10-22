@@ -48,7 +48,7 @@ class TestMcpHeaders:
 
         assert len(captured_requests) == 1
         req = captured_requests[0]
-        assert req.headers["X-SAUCE-MCP-SERVER"] == "rdc_dynamic"
+        assert req.headers["X-SAUCE-MCP-SERVER"] == "sauce-mcp-oss-rdc"
         assert req.headers["X-SAUCE-MCP-TRANSPORT"] == "stdio"
         assert req.headers["X-SAUCE-MCP-USER"] == "alice"
         assert req.headers["User-Agent"] == USER_AGENT

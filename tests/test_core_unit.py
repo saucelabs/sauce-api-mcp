@@ -59,7 +59,7 @@ class TestSauceApiCall:
         agent, requests = core_agent_with_mock()
         await agent.sauce_api_call("test/endpoint")
         assert len(requests) == 1
-        assert "ai=mcp" in str(requests[0].url)
+        assert "ai=sauce_mcp_oss_core" in str(requests[0].url)
 
     @pytest.mark.asyncio
     async def test_get_method_default(self, core_agent_with_mock):
@@ -79,7 +79,7 @@ class TestSauceApiCall:
         await agent.sauce_api_call("test/endpoint", params={"limit": 10})
         url_str = str(requests[0].url)
         assert "limit=10" in url_str
-        assert "ai=mcp" in url_str
+        assert "ai=sauce_mcp_oss_core" in url_str
 
     @pytest.mark.asyncio
     async def test_user_agent_header(self, core_agent_with_mock):
@@ -87,6 +87,14 @@ class TestSauceApiCall:
         await agent.sauce_api_call("test/endpoint")
         assert requests[0].headers["User-Agent"] == USER_AGENT
         assert USER_AGENT == f"Sauce OSS MCP Server/{version('sauce-api-mcp')}"
+
+    @pytest.mark.asyncio
+    async def test_tracking_headers(self, core_agent_with_mock):
+        agent, requests = core_agent_with_mock()
+        await agent.sauce_api_call("test/endpoint")
+        assert requests[0].headers["X-SAUCE-MCP-SERVER"] == "sauce-mcp-oss-core"
+        assert requests[0].headers["X-SAUCE-MCP-TRANSPORT"] == "stdio"
+        assert requests[0].headers["X-SAUCE-MCP-USER"] == "test_user"
 
     @pytest.mark.asyncio
     async def test_404_returns_response(self, core_agent_with_mock):
