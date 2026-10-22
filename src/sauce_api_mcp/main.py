@@ -7,6 +7,7 @@ import httpx
 import sys
 import logging
 
+from .shared import USER_AGENT
 from .models import (
     AccountInfo,
     LookupUsers,
@@ -53,7 +54,9 @@ class SauceLabsAgent:
             # Fallback to the dictionary for all other regions
             base_url = DATA_CENTERS[region]
 
-        self.client = httpx.AsyncClient(base_url=base_url, auth=auth)
+        self.client = httpx.AsyncClient(
+            base_url=base_url, auth=auth, headers={"User-Agent": USER_AGENT}
+        )
 
         ## Resources
         self.mcp.resource("sauce://account")(self.account_info)

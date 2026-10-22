@@ -46,6 +46,8 @@ from fastmcp import FastMCP
 from fastmcp.server.providers.openapi import MCPType, OpenAPIProvider
 from fastmcp.utilities.openapi import HTTPRoute
 
+from .shared import USER_AGENT
+
 logging.basicConfig(
     level=logging.INFO,
     stream=sys.stderr,
@@ -224,7 +226,9 @@ def fetch_openapi_spec_sync(spec_url: str) -> dict:
     last_error = None
     for attempt in range(1, MAX_FETCH_RETRIES + 1):
         try:
-            response = httpx.get(spec_url, timeout=30.0)
+            response = httpx.get(
+                spec_url, timeout=30.0, headers={"User-Agent": USER_AGENT}
+            )
             response.raise_for_status()
             spec = yaml.safe_load(response.text)
             _cache_spec(response.text)
@@ -350,6 +354,7 @@ def create_server(
     client = httpx.AsyncClient(
         base_url=base_url,
         auth=httpx.BasicAuth(username, access_key),
+        headers={"User-Agent": USER_AGENT},
         params={"ai": "rdc_openapi_mcp"},
         event_hooks={
             "request": [_inject_mcp_headers],
