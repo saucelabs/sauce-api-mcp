@@ -8,6 +8,7 @@ import sys
 import logging
 
 from .shared import USER_AGENT
+from .shared.tracking import tracking_hook, tracking_params
 from .models import (
     AccountInfo,
     LookupUsers,
@@ -55,7 +56,11 @@ class SauceLabsAgent:
             base_url = DATA_CENTERS[region]
 
         self.client = httpx.AsyncClient(
-            base_url=base_url, auth=auth, headers={"User-Agent": USER_AGENT}
+            base_url=base_url,
+            auth=auth,
+            headers={"User-Agent": USER_AGENT},
+            params=tracking_params("core"),
+            event_hooks={"request": [tracking_hook("core", username)]},
         )
 
         ## Resources
@@ -119,7 +124,6 @@ class SauceLabsAgent:
     ) -> Union[httpx.Response, dict[str, str]]:
         try:
             all_params = params or {}
-            all_params['ai'] = 'mcp'
 
             if files or form_data:
                 request_files = {}
