@@ -3,6 +3,7 @@ import pytest
 from unittest.mock import patch
 
 from sauce_api_mcp.rdc_dynamic import create_server
+from sauce_api_mcp.shared import USER_AGENT
 
 
 MINIMAL_SPEC = {
@@ -50,3 +51,4 @@ class TestMcpHeaders:
         assert req.headers["X-SAUCE-MCP-SERVER"] == "rdc_dynamic"
         assert req.headers["X-SAUCE-MCP-TRANSPORT"] == "stdio"
         assert req.headers["X-SAUCE-MCP-USER"] == "alice"
+        assert req.headers["User-Agent"] == USER_AGENT

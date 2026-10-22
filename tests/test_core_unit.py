@@ -8,9 +8,11 @@ error handling, and HAR filtering logic.
 
 import pytest
 import httpx
+from importlib.metadata import version
 
 from sauce_api_mcp.main import SauceLabsAgent
 from sauce_api_mcp.models import AccountInfo, LookupTeamsResponse, LookupUsers
+from sauce_api_mcp.shared import USER_AGENT
 
 
 # ===================================================================
@@ -78,6 +80,13 @@ class TestSauceApiCall:
         url_str = str(requests[0].url)
         assert "limit=10" in url_str
         assert "ai=mcp" in url_str
+
+    @pytest.mark.asyncio
+    async def test_user_agent_header(self, core_agent_with_mock):
+        agent, requests = core_agent_with_mock()
+        await agent.sauce_api_call("test/endpoint")
+        assert requests[0].headers["User-Agent"] == USER_AGENT
+        assert USER_AGENT == f"Sauce OSS MCP Server/{version('sauce-api-mcp')}"
 
     @pytest.mark.asyncio
     async def test_404_returns_response(self, core_agent_with_mock):
