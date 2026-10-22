@@ -11,7 +11,7 @@ import httpx
 from importlib.metadata import version
 
 from sauce_api_mcp.main import SauceLabsAgent
-from sauce_api_mcp.models import AccountInfo, LookupTeamsResponse, LookupUsers
+from sauce_api_mcp.models import AccountInfo, ErrorResponse, LookupTeamsResponse, LookupUsers
 from sauce_api_mcp.shared import USER_AGENT
 
 
@@ -800,3 +800,49 @@ class TestHarFiltering:
         agent = self._make_agent(mock_mcp_server)
         assert agent._extract_main_domain("https://www.example.com/path") == "example.com"
         assert agent._extract_main_domain("https://api.sub.example.com/") == "example.com"
+
+
+# ===================================================================
+# API errors returned as dicts by sauce_api_call
+# ===================================================================
+
+class TestApiErrorHandling:
+    """Tools return the error instead of raising when the API call fails."""
+
+    @staticmethod
+    async def _service_unavailable(request):
+        return httpx.Response(503, text="Service Unavailable")
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("tool, args", [
+        ("get_team", ("team1",)),
+        ("list_team_members", ("team1",)),
+        ("get_user", ("user1",)),
+        ("get_my_active_team", ()),
+        ("get_service_account", ("sa1",)),
+        ("get_job_details", ("job1",)),
+        ("get_build", ("vdc", "build1")),
+        ("get_tunnel_version_downloads", ("5.2.3",)),
+        ("get_specific_device", ("device1",)),
+        ("get_devices_status", ()),
+        ("get_real_device_jobs", ()),
+        ("get_specific_real_device_job", ("job1",)),
+        ("get_specific_real_device_job_asset", ("job1", "deviceLogs")),
+        ("get_private_devices", ()),
+        ("get_storage_files", ()),
+        ("get_storage_groups", ()),
+        ("get_storage_groups_settings", ("group1",)),
+        ("update_storage_group_settings", ("group1",)),
+    ])
+    async def test_returns_error_dict(self, core_agent_with_mock, tool, args):
+        agent, _ = core_agent_with_mock(self._service_unavailable)
+        result = await getattr(agent, tool)(*args)
+        assert "503" in result["error"]
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("tool", ["lookup_users", "lookup_service_accounts"])
+    async def test_returns_error_response(self, core_agent_with_mock, tool):
+        agent, _ = core_agent_with_mock(self._service_unavailable)
+        result = await getattr(agent, tool)()
+        assert isinstance(result, ErrorResponse)
+        assert "503" in result.error
