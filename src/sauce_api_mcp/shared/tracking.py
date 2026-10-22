@@ -1,7 +1,6 @@
 """Tracking headers and query params sent with every Sauce Labs request.
 
-The names include "oss" so requests from this open source server can be
-told apart from the hosted Sauce MCP server.
+The names include "oss" to mark requests from this open source server.
 """
 
 from typing import Awaitable, Callable
