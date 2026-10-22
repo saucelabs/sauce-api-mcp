@@ -244,6 +244,8 @@ class SauceLabsAgent:
             using the Lookup Teams endpoint.
         """
         response = await self.sauce_api_call(f"team-management/v1/teams/{id}")
+        if isinstance(response, dict):
+            return response
         if response.status_code == 404:
             return {
                 "error": f"Team not found: {id}",
@@ -267,6 +269,8 @@ class SauceLabsAgent:
         :param id: Required. Identifies the team for which you are requesting the list of members.
         """
         response = await self.sauce_api_call(f"team-management/v1/teams/{id}/members/")
+        if isinstance(response, dict):
+            return response
         return response.json()
 
     async def lookup_users(
@@ -279,7 +283,7 @@ class SauceLabsAgent:
         status: Optional[str] = None,
         limit: Optional[int] = None,
         offset: Optional[int] = None,
-    ) -> LookupUsers:
+    ) -> Union[LookupUsers, ErrorResponse]:
         """
         Queries the organization of the requesting account and returns the number of users matching the query and a basic
         profile of each user, including the ID value, which may be a required parameter of other API calls related to a
@@ -320,6 +324,8 @@ class SauceLabsAgent:
             "team-management/v1/users",  # Clean endpoint without query string
             params=params  # Pass parameters as dict
         )
+        if isinstance(response, dict):
+            return ErrorResponse(error=response['error'])
         return LookupUsers.model_validate(response.json())
 
     async def get_user(self, id: str) -> Dict[str, Any]:
@@ -328,6 +334,8 @@ class SauceLabsAgent:
         :param id: Required. The user's unique identifier. Specific user IDs can be obtained through the lookup_users Tool
         """
         response = await self.sauce_api_call(f"team-management/v1/users/{id}/")
+        if isinstance(response, dict):
+            return response
         if response.status_code == 404:
             return {
                 "error": f"User not found: {id}",
@@ -350,6 +358,8 @@ class SauceLabsAgent:
         Retrieves the Sauce Labs active team for the currently authenticated user.
         """
         response = await self.sauce_api_call("team-management/v1/users/me/active-team/")
+        if isinstance(response, dict):
+            return response
         return response.json()
 
     async def lookup_service_accounts(
@@ -359,7 +369,7 @@ class SauceLabsAgent:
         teams: Optional[str] = None,
         limit: Optional[int] = None,
         offset: Optional[int] = None,
-    ) -> LookupServiceAccounts:
+    ) -> Union[LookupServiceAccounts, ErrorResponse]:
         """
         Lists existing service accounts in your organization. You can filter the results using the query parameters below.
         :param id: Optional. Comma-separated service account IDs.
@@ -384,6 +394,8 @@ class SauceLabsAgent:
             params["offset"] = offset
 
         response = await self.sauce_api_call(f"team-management/v1/service-accounts", params=params)
+        if isinstance(response, dict):
+            return ErrorResponse(error=response['error'])
         return LookupServiceAccounts.model_validate(response.json())
 
     async def get_service_account(self, id: str) -> Dict[str, Any]:
@@ -396,6 +408,8 @@ class SauceLabsAgent:
         response = await self.sauce_api_call(
             f"team-management/v1/service-accounts/{id}/"
         )
+        if isinstance(response, dict):
+            return response
         if response.status_code == 404:
             return {
                 "error": f"Service account not found: {id}",
@@ -778,6 +792,8 @@ class SauceLabsAgent:
         :return: Detailed job information including status, timing, configuration, and platform-specific data.
         """
         response = await self.sauce_api_call(f"rest/v1/{self.username}/jobs/{job_id}")
+        if isinstance(response, dict):
+            return response
         if response.status_code == 200:
             return response.json()
         elif response.status_code == 404:
@@ -913,6 +929,8 @@ class SauceLabsAgent:
             organization using the Lookup Builds endpoint.
         """
         response = await self.sauce_api_call(f"v2/builds/{build_source}/{build_id}/")
+        if isinstance(response, dict):
+            return response
         if response.status_code == 404:
             return {
                 "error": f"Build not found: {build_id}",
@@ -1130,6 +1148,8 @@ class SauceLabsAgent:
         response = await self.sauce_api_call(
             f"rest/v1/public/tunnels/info/versions?client_version={client_version}"
         )
+        if isinstance(response, dict):
+            return response
         data = response.json()
         return data
 
@@ -1183,6 +1203,8 @@ class SauceLabsAgent:
             data center. Use the 'descriptor' value from get_devices_status results.
         """
         response = await self.sauce_api_call(f"v1/rdc/devices/{device_id}")
+        if isinstance(response, dict):
+            return response
         data = response.json()
         return data
 
@@ -1210,6 +1232,8 @@ class SauceLabsAgent:
         'device_id' parameter in get_specific_device calls.
         """
         response = await self.sauce_api_call(f"v1/rdc/devices/status")
+        if isinstance(response, dict):
+            return response
         data = response.json()
         return data
 
@@ -1223,6 +1247,8 @@ class SauceLabsAgent:
         """
         response = await self.sauce_api_call(f"v1/rdc/jobs",
              params={"limit": limit, "offset": offset})
+        if isinstance(response, dict):
+            return response
         data = response.json()
         return data
 
@@ -1233,6 +1259,8 @@ class SauceLabsAgent:
             look up job IDs using the Get Real Device Jobs endpoint.
         """
         response = await self.sauce_api_call(f"v1/rdc/jobs/{job_id}")
+        if isinstance(response, dict):
+            return response
         data = response.json()
         return data
 
@@ -1265,6 +1293,8 @@ class SauceLabsAgent:
             'crash.json' - Crash Logs | Appium
         """
         response = await self.sauce_api_call(f"v1/rdc/jobs/{job_id}/{asset_type}")
+        if isinstance(response, dict):
+            return response
         if response.status_code == 200:
             return {
                 "content": base64.b64encode(response.content).decode('utf-8'),
@@ -1281,6 +1311,8 @@ class SauceLabsAgent:
         Get a list of private devices with their device information and settings.
         """
         response = await self.sauce_api_call(f"v1/rdc/device-management/devices")
+        if isinstance(response, dict):
+            return response
         data = response.json()
         return {"devices": data}
 
@@ -1291,6 +1323,8 @@ class SauceLabsAgent:
         Returns the set of files that have been uploaded to Sauce Storage by the requestor.
         """
         response = await self.sauce_api_call("v1/storage/files")
+        if isinstance(response, dict):
+            return response
         data = response.json()
         return data
 
@@ -1299,6 +1333,8 @@ class SauceLabsAgent:
         Returns an array of groups (apps containing multiple files) currently in storage for the authenticated requestor.
         """
         response = await self.sauce_api_call("v1/storage/groups")
+        if isinstance(response, dict):
+            return response
         data = response.json()
         return data
 
@@ -1308,6 +1344,8 @@ class SauceLabsAgent:
         :param group_id: The unique identifier of the app group. You can look up group IDs using the Get App Storage Groups endpoint.
         """
         response = await self.sauce_api_call(f"rest/v1/storage/groups/{group_id}/settings")
+        if isinstance(response, dict):
+            return response
         data = response.json()
         return data
 
@@ -1410,6 +1448,8 @@ class SauceLabsAgent:
             method="PUT",
             json_body=payload
         )
+        if isinstance(response, dict):
+            return response
         return response.json()
 
 # If run directly from a TTY, this server could be compromised (STDIO hijacking, etc)
