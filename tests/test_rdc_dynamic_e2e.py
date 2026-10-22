@@ -579,7 +579,7 @@ class TestHeaderInjection:
 
         assert len(captured_requests) > 0, "No requests captured"
         req = captured_requests[-1]
-        assert req.headers.get("X-SAUCE-MCP-SERVER") == "rdc_dynamic"
+        assert req.headers.get("X-SAUCE-MCP-SERVER") == "sauce-mcp-oss-rdc"
         assert req.headers.get("X-SAUCE-MCP-TRANSPORT") == "stdio"
         assert req.headers.get("X-SAUCE-MCP-USER") == "fake_user"
 
@@ -600,7 +600,7 @@ class TestHeaderInjection:
         assert decoded == "fake_user:fake_key"
 
     def test_ai_query_param_configured_on_client(self, spec_from_url):
-        """The httpx client should have ai=rdc_openapi_mcp in default params."""
+        """The httpx client should have ai=sauce_mcp_oss_rdc in default params."""
         server = create_server(spec_from_url, "key", "user", "EU_CENTRAL")
         internal_tools = _get_internal_tools(server)
         tools_iter = internal_tools.values() if isinstance(internal_tools, dict) else internal_tools
@@ -608,7 +608,7 @@ class TestHeaderInjection:
             if hasattr(tool, "_client"):
                 client_params = tool._client.params
                 assert "ai" in client_params, f"Client params: {dict(client_params)}"
-                assert client_params["ai"] == "rdc_openapi_mcp"
+                assert client_params["ai"] == "sauce_mcp_oss_rdc"
                 break
 
     def test_base_url_matches_region(self, spec_from_url):
